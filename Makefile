@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build test all clean
+.PHONY: install contracts data build test all clean extraction-score
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -22,6 +22,11 @@ build:
 
 test:
 	$(PYTHON) -m pytest
+
+# Score the committed LLM extractions (contracts/extracted/) against contracts/providers/; offline, never calls
+# the API. Writes evaluation.extraction_scores. The paid extraction itself is `python -m feeaudit.extraction extract`.
+extraction-score:
+	$(PYTHON) -m feeaudit.extraction score
 
 all: clean contracts data build
 

@@ -21,4 +21,4 @@ make all
 | dbt-duckdb | 1.11.0 |
 | duckdb | 1.5.6 |
 
-The full lock is in `requirements.txt` and `requirements-dev.txt`.
+The full lock is in `requirements.txt` and `requirements-dev.txt`. The optional LLM contract extraction (`docs/llm-extraction.md`) has its own lock, `requirements-llm.txt`, which the build, the tests and CI do not need.

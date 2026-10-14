@@ -12,6 +12,8 @@ import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 
 SCHEMA_PATH = Path(__file__).with_name("contract_schema.json")
+# Subdirectory of the contracts directory that holds unreviewed LLM extractions; never loaded.
+EXTRACTED_DIR = "extracted"
 
 # Components of each kind; a term's optional `component` must equal the single one.
 KIND_COMPONENTS = {
@@ -111,17 +113,30 @@ def _python_checks(doc):
     return problems
 
 
+def validate_contract(doc):
+    """Schema errors, else the Python checks, as (json_path, message) pairs; empty when the document is valid."""
+    errors = sorted(_get_validator().iter_errors(doc), key=lambda e: (list(map(str, e.absolute_path)), e.message))
+    problems = [(e.json_path, e.message) for e in errors]
+    return problems or _python_checks(doc)
+
+
 def load_contract_file(path):
-    """Read one contract YAML, validate it and return it with dates as ISO strings."""
+    """Read one contract YAML, validate it and return it with dates as ISO strings.
+
+    Refuses any term marked `approved: false` (an LLM extraction nobody has reviewed, docs/llm-extraction.md).
+    """
     path = Path(path)
     try:
         doc = _dates_to_iso(yaml.safe_load(path.read_text()))
     except (OSError, yaml.YAMLError) as exc:
         raise ContractError(f"{_rel(path)}: cannot read: {exc}") from None
-    errors = sorted(_get_validator().iter_errors(doc), key=lambda e: (list(map(str, e.absolute_path)), e.message))
-    problems = [(e.json_path, e.message) for e in errors]
+    problems = validate_contract(doc)
     if not problems:
-        problems = _python_checks(doc)
+        problems = [
+            (f"$.terms[{i}]", f"clause {t['clause']} is not approved (approved: false); review it against the contract "
+             "text and set approved: true before the engine may use it")
+            for i, t in enumerate(doc["terms"]) if t.get("approved") is False
+        ]
     if problems:
         raise ContractError("\n".join(f"{_rel(path)}: {p}: {m}" for p, m in problems))
     return doc
@@ -157,8 +172,10 @@ def _version_checks(contract_id, versions):
 
 
 def load_contracts(contracts_dir="contracts"):
-    """Load and validate every `*.yml` under contracts_dir; add `source_file` and derived `effective_to`."""
-    paths = sorted(Path(contracts_dir).rglob("*.yml"))
+    """Load and validate every `*.yml` under contracts_dir except `extracted/` (unreviewed LLM output);
+    add `source_file` and derived `effective_to`."""
+    root = Path(contracts_dir)
+    paths = sorted(p for p in root.rglob("*.yml") if EXTRACTED_DIR not in p.relative_to(root).parts)
     problems, contracts = [], []
     for path in paths:
         try:
@@ -199,7 +216,9 @@ def write_contracts(contracts, db_path="warehouse/fees.duckdb"):
             c["dispute_window_days"], c["source_file"],
         ))
         for t in c["terms"]:
-            params = {k: v for k, v in t.items() if k not in ("clause", "kind", "title", "component", "components")}
+            params = {
+                k: v for k, v in t.items() if k not in ("clause", "kind", "title", "component", "components", "approved")
+            }
             term_rows.append((
                 c["contract_id"], c["version"], t["clause"], t["kind"], t["title"], term_components(t),
                 json.dumps(params), *(t.get(name) for name in TERM_COLUMNS),

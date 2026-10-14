@@ -39,6 +39,8 @@ Provider exports, invoices and client invoices are documented in section 8 (writ
 
 One YAML per contract version in `contracts/providers/` and `contracts/clients/`, validated by the JSON Schema in `feeaudit/`. Each version is complete (it repeats unchanged terms). Every term has a `clause` id that findings cite. Interchange and scheme fee reference: `dbt/seeds/interchange_table_v1.csv` (illustrative, keyed by scheme × card type × region) [A07].
 
+A term may carry `approved` (boolean). The loader refuses any term with `approved: false` (an unreviewed LLM extraction) and never reads `contracts/extracted/`; `approved` is not a term parameter. `contracts/text/` holds the same provider contracts as prose, rendered from the YAML. See `docs/llm-extraction.md`.
+
 ### 4.1 Provider term kinds and expected charges
 
 | Kind | Component(s) | Expected charge |

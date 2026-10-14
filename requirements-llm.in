@@ -1,0 +1,5 @@
+# Optional dependencies of the LLM contract extraction (python -m feeaudit.extraction extract); not needed by
+# make all, the tests or CI. Regenerate requirements-llm.txt with:
+#   uv pip compile requirements-llm.in --python-version 3.12 --no-header --no-annotate -o requirements-llm.txt
+-c requirements.txt
+anthropic

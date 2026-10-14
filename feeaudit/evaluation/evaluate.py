@@ -1,4 +1,4 @@
-"""Builds schema `evaluation` from the findings tables and schema `truth`; see the package docstring."""
+"""Builds the tables of schema `evaluation` (other tools add their own) from the findings tables and schema `truth`; see the package docstring."""
 
 from __future__ import annotations
 
@@ -142,10 +142,10 @@ def _prepare(con, client: bool) -> None:
 
 def _build(con, client: bool) -> None:
     types = "" if client else "WHERE t.truth_id LIKE 'D%'"
-    con.execute("DROP SCHEMA IF EXISTS evaluation CASCADE")
-    con.execute("CREATE SCHEMA evaluation")
+    # Other tools also write into schema `evaluation`; replace only this module's tables.
+    con.execute("CREATE SCHEMA IF NOT EXISTS evaluation")
     con.execute(f"""
-        CREATE TABLE evaluation.detection_by_type AS
+        CREATE OR REPLACE TABLE evaluation.detection_by_type AS
         WITH first_match AS (  -- one finding per found unit, so duplicate findings do not double the money
             SELECT unit_id, min(finding_id) AS finding_id FROM m GROUP BY unit_id
         ),
@@ -170,7 +170,7 @@ def _build(con, client: bool) -> None:
         FROM per_type ORDER BY truth_id""")
 
     con.execute("""
-        CREATE TABLE evaluation.noise_false_positives AS
+        CREATE OR REPLACE TABLE evaluation.noise_false_positives AS
         SELECT 'noise' AS category, f.finding_id, f.party, f.finding_type, fn.noise_id,
                fn.line_id, fn.event_id, fn.source_file, fn.source_row, f.difference_minor
         FROM f JOIN fn USING (finding_id)
@@ -183,7 +183,7 @@ def _build(con, client: bool) -> None:
         ORDER BY 1, 2""")
 
     con.execute("""
-        CREATE TABLE evaluation.invoice_level AS
+        CREATE OR REPLACE TABLE evaluation.invoice_level AS
         WITH fx AS (
             SELECT counterparty AS provider, month_key AS month, count(*) AS findings,
                    sum(difference_minor)::BIGINT AS findings_minor
@@ -199,7 +199,7 @@ def _build(con, client: bool) -> None:
         ORDER BY provider, month""")
 
     con.execute("""
-        CREATE TABLE evaluation.unexplained_findings AS
+        CREATE OR REPLACE TABLE evaluation.unexplained_findings AS
         SELECT f.finding_id, f.party, f.counterparty, f.finding_type, f.month_key AS month, f.event_id, f.line_ids,
                f.difference_minor,
                CASE WHEN f.finding_type = 'fee_mismatch' THEN 'fee_mismatch' ELSE 'unmatched' END AS reason

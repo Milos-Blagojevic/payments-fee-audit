@@ -12,5 +12,5 @@ One definition per metric, implemented once. Reports and the README read these c
 | M06 | Undercharge | Sum of negative `difference_minor` of rule findings, excluding `rounding` (the provider billed too little; reported, never disputed) | EUR minor units | provider invoice | `fct_dispute_queue.undercharge_minor` |
 | M07 | Recoverable | M05 for findings whose dispute deadline is on or after the `as_of_date` var (A22) | EUR minor units | provider invoice | `fct_dispute_queue.recoverable_minor` |
 | M08 | FX spread cost | EUR debited − EUR equivalent at the execution-hour mid | EUR minor units | payout | `fct_fx_conversions.spread_cost_minor` |
-
-M09 (revenue leakage) and M10 (client margin) arrive with the client billing models.
+| M09 | Revenue leakage | Expected client billing under the pricing agreement − actual client billing (invoice lines, net of discounts); positive = Fernway billed too little | EUR minor units | client × month | `fct_client_margin.revenue_leakage_minor` |
+| M10 | Client margin | Actual client billing − provider fees allocated to the client's events (monthly charges by volume share, A09, A32) − M08 of the client's payouts | EUR minor units | client × month | `fct_client_margin.margin_minor` |

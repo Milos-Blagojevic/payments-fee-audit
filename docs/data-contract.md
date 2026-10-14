@@ -214,3 +214,5 @@ Where sections 1–7 leave a choice, the dbt engine reads them as follows (reaso
 - A markup line that equals both the stale rate and the first-tier rate takes the reading the month's unambiguous lines show (A21).
 - `days_left` counts from the dbt var `as_of_date` (A22); a finding belongs to the invoice its line arrived on (A24).
 - `int_expected_charges` has the same rows as the Python reference engine's `reference.expected_charges`; `make verify` requires exact equality.
+- Client billing is checked for every month, the last included: the invoices are built from the same ledger export (A30). Client findings are client × month × invoice line component, classified by the rules of A33, and corrected on Fernway's own invoice (A31).
+- Client margin: provider fees by the event they belong to, monthly charges by volume share, plus the FX spread; lines after the watermark are pending (A32).

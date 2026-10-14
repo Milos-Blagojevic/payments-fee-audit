@@ -169,3 +169,31 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Why:** the dispute window starts with the invoice that billed (or should have billed) the charge.
 - **Alternatives:** the invoice of the event month regardless of where the line arrived.
 - **Set in:** `dbt/models/intermediate/int_charge_comparison.sql`, `dbt/models/marts/fct_findings.sql`.
+
+## A30 Every client invoice month is checked
+
+- **Default:** client billing is checked for every month, the last period month included; no client finding is pending.
+- **Why:** Fernway builds its client invoices from the same ledger export the checks read (A12), so the last month's invoice already excludes the lag day and the ledger fully covers what it bills, month-level terms (volume tier, promotion, platform fee) included.
+- **Alternatives:** treat month-level client checks of a month the ledger does not fully cover as pending, as for provider months (A19); that would hold back real leakage in the last month.
+- **Set in:** `dbt/models/intermediate/int_expected_client_billing.sql`, `int_client_billing_comparison.sql`.
+
+## A31 Client findings are corrected, not disputed
+
+- **Default:** a client finding belongs to Fernway's invoice for that client × month. Its `dispute_deadline` is the invoice date plus the agreement's `dispute_window_days`: the period in which the invoice is open to query and Fernway issues a correction. Most client findings are revenue leakage (billed too little), which Fernway recovers by invoicing the difference.
+- **Why:** these are Fernway's own invoices; there is no provider to dispute with, but the agreement's window is the natural deadline for correcting them.
+- **Alternatives:** no deadline (leave the columns null); the provider-side dispute queue (not applicable to Fernway's own invoices).
+- **Set in:** `dbt/models/marts/fct_client_billing_findings.sql`; `dispute_window_days` in `contracts/clients/*.yml`.
+
+## A32 Client margin: which costs, which month
+
+- **Default:** a client's provider costs are the invoiced provider fees of its ledger events (payouts by execution), by UTC month; a line without a ledger event goes to the client the provider reported. Monthly charges without an event are split by volume share in the provider's month (A09): the monthly minimum by processed volume, the volume adjustment by EEA consumer volume (the volume each term is computed on), in whole cents with largest remainders. The FX spread (M08) of the client's payouts is a cost too, since the client FX markup is priced to cover it. Fees on lines after the ledger watermark are shown as pending and kept out of the month's margin, because the lag day is billed to clients in the next cycle (A12).
+- **Why:** revenue and costs then cover the same events; event-level costs are traceable, and the volume a monthly term is computed on is the fairest key for that term.
+- **Alternatives:** fees only, without the FX spread; one volume key for every monthly charge; include the lag day's fees in the last month's margin.
+- **Set in:** `dbt/models/intermediate/int_provider_cost_allocation.sql`, `dbt/models/marts/fct_client_margin.sql`.
+
+## A33 Client leakage rules
+
+- **Default:** a client invoice line (client × month × component) that differs from the agreement by at least one minor unit is `rail_not_billed` when a payout rail with expected fees has no line, `fx_markup_not_billed` when expected FX markup has no line, `promo_after_end_date` when the billed promotional discount equals the promotion applied to the whole month and the promotion ended before the month's last day, `volume_discount_too_high` when the billed volume discount equals the discount of a higher tier than the month's volume earns, `rounding` for a one-unit difference that the other rounding mode explains, and `fee_mismatch` otherwise.
+- **Why:** each rule names the billing error a finance team would fix, and requiring the billed amount to match the error pattern keeps every other difference visible as `fee_mismatch`.
+- **Alternatives:** classify by component only (any missing or larger discount is the matching leakage type).
+- **Set in:** `dbt/models/intermediate/int_client_billing_comparison.sql`.

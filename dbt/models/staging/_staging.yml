@@ -1,0 +1,564 @@
+version: 2
+
+models:
+  - name: stg_ledger__payments
+    description: Ledger card payment attempts, typed. Timestamps UTC, amounts in minor units.
+    columns:
+      - name: payment_id
+        description: Payment id (`pay_…`).
+        data_tests: [unique, not_null]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: created_at_utc
+        description: Time of the payment attempt, UTC.
+        data_tests: [not_null]
+      - name: amount_minor
+        description: Payment amount in minor units.
+        data_tests: [not_null]
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: card_scheme
+        description: "{{ doc('card_scheme') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [visa, mastercard]
+      - name: card_type
+        description: "{{ doc('card_type') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [consumer_debit, consumer_credit, commercial]
+      - name: card_region
+        description: "{{ doc('card_region') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [domestic, intra_eea, inter_regional]
+      - name: status
+        description: "`succeeded`, `declined` or `failed`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [succeeded, declined, failed]
+      - name: provider
+        description: Card provider that processed the attempt (`northgate` or `brightpay`).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [northgate, brightpay]
+      - name: export_date
+        description: "{{ doc('export_date') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_ledger__refunds
+    description: Ledger refunds (always full refunds of a card payment), typed.
+    columns:
+      - name: refund_id
+        description: Refund id (`ref_…`).
+        data_tests: [unique, not_null]
+      - name: payment_id
+        description: The refunded payment.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ledger__payments')
+                field: payment_id
+      - name: created_at_utc
+        description: Time of the refund, UTC.
+        data_tests: [not_null]
+      - name: amount_minor
+        description: Refund amount in minor units.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: export_date
+        description: "{{ doc('export_date') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_ledger__chargebacks
+    description: Ledger chargebacks of card payments, typed.
+    columns:
+      - name: chargeback_id
+        description: Chargeback id (`cb_…`).
+        data_tests: [unique, not_null]
+      - name: payment_id
+        description: The disputed payment.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ledger__payments')
+                field: payment_id
+      - name: created_at_utc
+        description: Time of the chargeback, UTC.
+        data_tests: [not_null]
+      - name: amount_minor
+        description: Chargeback amount in minor units.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: export_date
+        description: "{{ doc('export_date') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_ledger__payouts
+    description: Ledger payouts to sellers, typed.
+    columns:
+      - name: payout_id
+        description: Payout id (`po_…`).
+        data_tests: [unique, not_null]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+      - name: created_at_utc
+        description: Time the payout was instructed, UTC.
+      - name: executed_at_utc
+        description: Time the payout was executed, UTC (selects contract version, month and FX hour, A13).
+        data_tests: [not_null]
+      - name: amount_minor
+        description: Payout amount in minor units of the payout currency.
+      - name: currency
+        description: "Payout currency: EUR, GBP, USD, CHF or PLN."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR, GBP, USD, CHF, PLN]
+      - name: rail
+        description: "`sepa`, `faster_payments`, `swift` or `elixir`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [sepa, faster_payments, swift, elixir]
+      - name: provider
+        description: Payout provider (`kestrel`).
+      - name: export_date
+        description: "{{ doc('export_date') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_fernway__clients
+    description: Fernway's clients, typed.
+    columns:
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [unique, not_null]
+      - name: client_name
+        description: Client name (fictional).
+      - name: country
+        description: ISO country code.
+      - name: card_provider
+        description: Card provider at the start of the period.
+      - name: card_provider_switch_date
+        description: UTC date from which new payments go to `card_provider_after_switch`; null without a switch.
+      - name: card_provider_after_switch
+        description: Card provider after the switch.
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_fx__mid_hourly
+    description: Hourly FX mid rates per pair, typed.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [pair, hour_start_utc]
+    columns:
+      - name: pair
+        description: Currency pair (`EURGBP`, `EURUSD`, `EURCHF`, `EURPLN`).
+      - name: base_currency
+        description: Base currency of the pair (always EUR).
+      - name: quote_currency
+        description: Quote currency of the pair.
+      - name: hour_start_utc
+        description: Start of the hour, UTC.
+        data_tests: [not_null]
+      - name: mid
+        description: Units of the quote currency per 1 EUR, six decimals.
+        data_tests: [not_null]
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_northgate__settlement_lines
+    description: >
+      Northgate settlement lines: one row per fee line, deduplicated (N01), amounts parsed from major units with
+      either decimal separator (N02), Europe/Berlin local times converted to UTC (N03), labels normalised (N05).
+    columns:
+      - name: line_id
+        description: Northgate line reference (`NG…`).
+        data_tests: [unique, not_null]
+      - name: event_ref
+        description: Fernway event id as reported by Northgate; null on monthly lines and on lines without a reference (N06).
+      - name: client_id
+        description: "{{ doc('client_id') }} (Northgate `merchant_ref`)."
+      - name: event_timestamp_utc
+        description: Event time, UTC (null on monthly lines).
+      - name: period_month
+        description: First day of the month a `MONTHLY_MINIMUM` line is for.
+      - name: line_type
+        description: Northgate line type (`INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE`, `REFUND_FEE`, `MARKUP_CREDIT`, `CHARGEBACK_FEE`, `MONTHLY_MINIMUM`).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [INTERCHANGE, SCHEME_FEE, MARKUP, FIXED_FEE, REFUND_FEE, MARKUP_CREDIT, CHARGEBACK_FEE, MONTHLY_MINIMUM]
+      - name: event_amount_minor
+        description: Event amount in minor units.
+      - name: event_currency
+        description: "{{ doc('currency') }}"
+      - name: card_scheme
+        description: "{{ doc('card_scheme') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [visa, mastercard]
+      - name: card_type
+        description: "{{ doc('card_type') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [consumer_debit, consumer_credit, commercial]
+      - name: card_region
+        description: "{{ doc('card_region') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [domestic, intra_eea, inter_regional]
+      - name: fee_minor
+        description: Fee in minor units (negative for `MARKUP_CREDIT`).
+        data_tests: [not_null]
+      - name: fee_currency
+        description: Fee currency.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR]
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+        data_tests: [not_null]
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_brightpay__transactions_export
+    description: >
+      Brightpay transactions export: one row per payment attempt, refund and chargeback with its all-in fee,
+      deduplicated (N01), minor units (N02), labels normalised (N05).
+    columns:
+      - name: line_id
+        description: Brightpay line id (`bp_…`).
+        data_tests: [unique, not_null]
+      - name: line_type
+        description: "`payment`, `refund` or `chargeback`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [payment, refund, chargeback]
+      - name: status
+        description: "Payments: `captured`, `declined`, `failed`; refunds and chargebacks: `completed`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [captured, declined, failed, completed]
+      - name: event_ref
+        description: Fernway event id as reported by Brightpay; null on lines without a reference (N06).
+      - name: client_id
+        description: "{{ doc('client_id') }} (Brightpay `sub_merchant`)."
+      - name: event_timestamp_utc
+        description: Event time, UTC.
+        data_tests: [not_null]
+      - name: event_amount_minor
+        description: Event amount in minor units.
+      - name: event_currency
+        description: "{{ doc('currency') }}"
+      - name: card_scheme
+        description: "{{ doc('card_scheme') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [visa, mastercard]
+      - name: card_type
+        description: "{{ doc('card_type') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [consumer_debit, consumer_credit, commercial]
+      - name: card_region
+        description: "{{ doc('card_region') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [domestic, intra_eea, inter_regional]
+      - name: fee_minor
+        description: All-in fee in minor units.
+        data_tests: [not_null]
+      - name: fee_currency
+        description: Fee currency.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR]
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+        data_tests: [not_null]
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_brightpay__adjustments
+    description: Brightpay monthly adjustments (volume discount credits), deduplicated, minor units.
+    columns:
+      - name: adjustment_id
+        description: Adjustment id.
+        data_tests: [unique, not_null]
+      - name: period_month
+        description: First day of the month the adjustment is for.
+        data_tests: [not_null]
+      - name: adjustment_type
+        description: Adjustment type (`volume_discount`).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [volume_discount]
+      - name: description
+        description: Brightpay's description of the adjustment.
+      - name: amount_minor
+        description: Adjustment in minor units (negative = credit).
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_kestrel__payouts_statement
+    description: Kestrel payouts statement, one row per payout, deduplicated, major units parsed, labels normalised.
+    columns:
+      - name: line_id
+        description: Kestrel statement line id (`KST-…`).
+        data_tests: [unique, not_null]
+      - name: event_ref
+        description: Fernway payout id as reported by Kestrel; null on lines without a reference (N06).
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+      - name: payout_currency
+        description: Payout currency.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR, GBP, USD, CHF, PLN]
+      - name: payout_amount_minor
+        description: Payout amount in minor units of the payout currency.
+      - name: rail
+        description: "`sepa`, `faster_payments`, `swift` or `elixir`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [sepa, faster_payments, swift, elixir]
+      - name: fee_minor
+        description: Payout fee in EUR minor units.
+        data_tests: [not_null]
+      - name: fx_rate_applied
+        description: Applied rate, payout-currency units per 1 EUR; null for EUR payouts.
+      - name: rate_timestamp_utc
+        description: Start of the hour whose rate Kestrel used, UTC; null for EUR payouts.
+      - name: eur_debited_minor
+        description: EUR debited for the payout, minor units.
+        data_tests: [not_null]
+      - name: executed_at_utc
+        description: Execution time, UTC.
+        data_tests: [not_null]
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_northgate__invoices
+    description: Northgate monthly invoices, total in minor units.
+    columns: &invoice_columns
+      - name: invoice_id
+        description: Provider invoice number.
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+      - name: statement_month
+        description: First day of the statement month the invoice covers.
+        data_tests: [unique, not_null]
+      - name: invoice_date
+        description: Invoice date (the dispute window starts here).
+        data_tests: [not_null]
+      - name: total_minor
+        description: Invoice total in minor units.
+        data_tests: [not_null]
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_brightpay__invoices
+    description: Brightpay monthly invoices, total in minor units.
+    columns: *invoice_columns
+
+  - name: stg_kestrel__invoices
+    description: Kestrel monthly invoices (payout fees only), total in minor units.
+    columns: *invoice_columns
+
+  - name: stg_fernway__client_invoices
+    description: Invoices Fernway sent to its clients, typed.
+    columns:
+      - name: invoice_id
+        description: Invoice id (`FW-<YYYY-MM>-<client_id>`).
+        data_tests: [unique, not_null]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+      - name: period_month
+        description: First day of the billed month (UTC).
+      - name: invoice_date
+        description: Invoice date.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: total_minor
+        description: Invoice total in minor units.
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_fernway__client_invoice_lines
+    description: Lines of the invoices Fernway sent to its clients, typed.
+    columns:
+      - name: invoice_line_id
+        description: "`<invoice_id>:<line_no>`."
+        data_tests: [unique, not_null]
+      - name: invoice_id
+        description: Invoice the line belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_fernway__client_invoices')
+                field: invoice_id
+      - name: line_no
+        description: Line number within the invoice.
+      - name: component
+        description: Invoice line component (data contract section 4.2).
+      - name: description
+        description: Line description as printed.
+      - name: quantity
+        description: Payments, payouts or non-EUR payouts counted; 1 for the platform fee.
+      - name: amount_minor
+        description: Line amount in minor units (negative for discounts).
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: stg_contracts__contract_versions
+    description: Contract versions (providers and clients) as loaded by `make contracts`.
+    columns:
+      - name: contract_version_id
+        description: "`<contract_id> v<version>`."
+        data_tests: [unique, not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: party
+        description: "`provider` or `client`."
+      - name: counterparty
+        description: Provider id or client id.
+      - name: contract_name
+        description: Name of the counterparty as written in the contract.
+      - name: effective_from
+        description: First day the version applies (contract time zone).
+      - name: effective_to
+        description: Last day the version applies (inclusive); null for the latest version.
+      - name: currency
+        description: Currency fees are billed in.
+      - name: timezone
+        description: Time zone of the contract's dates and months.
+      - name: rounding_mode
+        description: "`half_up` or `half_even`."
+      - name: rounding_level
+        description: "`transaction` or `invoice_line`."
+      - name: dispute_window_days
+        description: Days after the invoice date during which a billing error can be disputed.
+      - name: source_file
+        description: The contract YAML file.
+
+  - name: stg_contracts__contract_terms
+    description: Contract terms, one row per contract version × clause.
+    columns:
+      - name: contract_term_id
+        description: "`<contract_id> v<version> §<clause>`."
+        data_tests: [unique, not_null]
+      - name: contract_version_id
+        description: "`<contract_id> v<version>`."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_contracts__contract_versions')
+                field: contract_version_id
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: clause
+        description: "{{ doc('clause') }}"
+      - name: kind
+        description: Term kind (closed list, data contract section 4).
+      - name: title
+        description: Short title of the clause.
+      - name: components
+        description: Fee components the term produces.
+      - name: parameters
+        description: All parameters of the term as JSON (tiers, segments, caps).
+      - name: amount_minor
+        description: Fixed amount in minor units (fixed fee, chargeback fee, minimum, platform fee).
+      - name: fee_minor
+        description: Refund fee in minor units.
+      - name: fixed_minor
+        description: Fixed payout fee in minor units.
+      - name: bps
+        description: Rate in basis points (payout fee, FX markup).
+      - name: min_minor
+        description: Minimum fee in minor units.
+      - name: cap_minor
+        description: Fee cap in minor units.
+      - name: rail
+        description: Payout rail of a payout fee.
+      - name: segment
+        description: Card segment a volume discount applies to.
+      - name: basis
+        description: Volume basis of a tiered term.
+      - name: tiering
+        description: "`retroactive` or `marginal`."
+      - name: reference
+        description: Interchange reference table of a pass-through term.
+      - name: applies_to
+        description: What a monthly minimum applies to (`markup`).
+      - name: credit_original_markup
+        description: Whether a refund credits the original markup.
+      - name: discount_pct
+        description: Discount percentage of a promotional discount.
+      - name: valid_until
+        description: Last day (inclusive) of a promotional discount.

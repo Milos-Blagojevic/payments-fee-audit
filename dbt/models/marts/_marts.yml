@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: fct_invoice_reconciliation
+    description: >
+      One row per provider × statement month: the invoice total against the sum of the statement's distinct
+      invoiced lines. Any difference is reported in `invoice_difference_minor`.
+    columns:
+      - name: invoice_reconciliation_id
+        description: "`<provider>:<YYYY-MM>`."
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: statement_month
+        description: First day of the statement month.
+        data_tests: [not_null]
+      - name: invoice_id
+        description: Provider invoice number; null when lines have no invoice.
+      - name: invoice_date
+        description: Invoice date.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: invoice_total_minor
+        description: Invoice total, minor units; null when lines have no invoice.
+      - name: lines_total_minor
+        description: Sum of the statement month's distinct invoiced lines (Kestrel FX debits excluded), minor units.
+      - name: line_count
+        description: Number of distinct invoiced lines in the statement month.
+      - name: invoice_difference_minor
+        description: Invoice total − sum of lines; 0 when the invoice adds up.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0]
+              config:
+                severity: warn
+      - name: source_file
+        description: "{{ doc('source_file') }} (the invoice file)."
+      - name: source_row
+        description: "{{ doc('source_row') }}"

@@ -1,0 +1,229 @@
+version: 2
+
+models:
+  - name: int_ledger_watermark
+    description: >
+      One row: the time up to which the ledger export is complete (N07). Provider lines for events at or after it
+      cannot be matched yet and are `unmatched_pending`; months that end after it are not fully covered.
+    columns:
+      - name: last_export_date
+        description: Latest ledger export date.
+        data_tests: [unique, not_null]
+      - name: watermark_utc
+        description: 00:00 UTC of the latest export date; the ledger holds every event before this time.
+        data_tests: [not_null]
+
+  - name: int_ledger_events
+    description: >
+      All ledger events in one table: payments, refunds, chargebacks and payouts with their client, amount,
+      currency, UTC timestamp, card attributes and provider. Refunds and chargebacks carry the client, card and
+      provider of the original payment; payouts are dated by execution (A13).
+    columns:
+      - name: event_id
+        description: "{{ doc('event_id') }}"
+        data_tests: [unique, not_null]
+      - name: event_type
+        description: "`payment`, `refund`, `chargeback` or `payout`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [payment, refund, chargeback, payout]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: amount_minor
+        description: Event amount in minor units of `currency`.
+        data_tests: [not_null]
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: event_timestamp_utc
+        description: Event time, UTC (payouts at execution).
+        data_tests: [not_null]
+      - name: created_at_utc
+        description: Creation time, UTC (differs from the event time for payouts).
+      - name: event_date_utc
+        description: UTC date of the event.
+      - name: provider_timezone
+        description: Time zone of the provider's contract.
+        data_tests: [not_null]
+      - name: provider_local_date
+        description: Event date in the provider's contract time zone (selects the contract version, A03).
+      - name: provider_month
+        description: "{{ doc('event_month') }}"
+        data_tests: [not_null]
+      - name: card_scheme
+        description: "{{ doc('card_scheme') }}"
+      - name: card_type
+        description: "{{ doc('card_type') }}"
+      - name: card_region
+        description: "{{ doc('card_region') }}"
+      - name: card_segment
+        description: "{{ doc('card_segment') }}"
+      - name: payment_status
+        description: Status of a payment attempt; null for other events.
+      - name: original_payment_id
+        description: The payment a refund or chargeback belongs to.
+      - name: rail
+        description: Payout rail.
+      - name: expects_provider_line
+        description: Whether the provider's export has a line for this event (Northgate omits declined and failed attempts).
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: int_provider_lines
+    description: >
+      All providers' charges in one shape, one row per provider line × fee component. A Kestrel line carries two
+      components (the invoiced payout fee and the EUR debited for a non-EUR payout); every other line one.
+    columns:
+      - name: line_component_id
+        description: "`<line_id>:<component>`."
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: Provider line id.
+        data_tests: [not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: event_ref
+        description: Event id the provider reported; null on monthly lines and on lines without a reference (N06).
+      - name: event_type
+        description: "{{ doc('event_type') }}"
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [payment, refund, chargeback, payout, provider_month]
+      - name: component
+        description: "{{ doc('component') }}"
+        data_tests: [not_null]
+      - name: match_slot
+        description: The unit a ledger event is matched one-to-one on (the component; `payout` for Kestrel lines).
+      - name: amount_minor
+        description: Charged amount in minor units (EUR debited for `fx_conversion`).
+        data_tests: [not_null]
+      - name: currency
+        description: Currency of `amount_minor` (EUR).
+      - name: is_invoiced
+        description: Whether the amount is part of the provider's invoice (false for Kestrel FX debits).
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+      - name: event_amount_minor
+        description: Event amount the provider reported, minor units of `event_currency`.
+      - name: event_currency
+        description: Event currency the provider reported.
+      - name: event_timestamp_utc
+        description: Event time the provider reported, UTC (Kestrel execution time).
+      - name: event_month
+        description: "{{ doc('event_month') }}"
+        data_tests: [not_null]
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+        data_tests: [not_null]
+      - name: card_scheme
+        description: Card scheme the provider reported, normalised.
+      - name: card_type
+        description: Card type the provider reported, normalised.
+      - name: card_region
+        description: Card region the provider reported, normalised.
+      - name: billed_card_segment
+        description: Card segment from the provider's card attributes.
+      - name: payment_status
+        description: Payment status the provider reported (Brightpay; `succeeded`, `declined`, `failed`).
+      - name: rail
+        description: Payout rail (Kestrel).
+      - name: payout_currency
+        description: Payout currency (Kestrel).
+      - name: fx_rate_applied
+        description: FX rate Kestrel applied, payout-currency units per 1 EUR.
+      - name: rate_timestamp_utc
+        description: Start of the hour whose rate Kestrel used, UTC.
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: int_provider_invoices
+    description: The three providers' monthly invoices in one shape.
+    columns:
+      - name: invoice_id
+        description: Provider invoice number.
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+      - name: statement_month
+        description: First day of the statement month the invoice covers.
+      - name: invoice_date
+        description: Invoice date.
+      - name: total_minor
+        description: Invoice total in minor units.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }}"
+      - name: source_row
+        description: "{{ doc('source_row') }}"
+
+  - name: int_reconciliation
+    description: >
+      Ledger event ↔ provider line matches: one row per provider line (its status and the event it matched), plus
+      one row per ledger event that should have a provider line but has none. Lines match by provider reference
+      first, then by the fallback key (N06, A06).
+    columns:
+      - name: reconciliation_id
+        description: The line id, or `<event_type>:<event_id>` for a `ledger_only` row.
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+      - name: line_id
+        description: Provider line id; null for `ledger_only`.
+        data_tests: [unique]
+      - name: event_id
+        description: Ledger event the line belongs to (null when none was found).
+      - name: event_type
+        description: "{{ doc('event_type') }}"
+      - name: match_slot
+        description: Unit of the one-to-one match (component, or `payout`).
+      - name: match_method
+        description: "`reference`, `fallback` or `provider_month` (monthly lines); null when unmatched."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [reference, fallback, provider_month]
+      - name: status
+        description: >
+          `matched`; `provider_only` (a line without a ledger counterpart: unknown event, D14, or a duplicate, D06);
+          `ledger_only` (an event without a line); `unmatched_pending` (a line after the ledger watermark, N07).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [matched, provider_only, ledger_only, unmatched_pending]
+      - name: reason
+        description: >
+          Why a row is not `matched`: `duplicate`, `unknown_event`, `no_ledger_match`, `unknown_month`,
+          `ledger_lag`, `no_provider_line` or `not_billed_yet`.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [duplicate, unknown_event, no_ledger_match, unknown_month, ledger_lag, no_provider_line, not_billed_yet]
+      - name: duplicate_of_line_id
+        description: For a duplicate, the first line of the same event × component.
+      - name: event_ref
+        description: Event id the provider reported.
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+      - name: event_timestamp_utc
+        description: Event time, UTC.
+      - name: event_month
+        description: "{{ doc('event_month') }}"
+      - name: statement_month
+        description: "{{ doc('statement_month') }}"
+      - name: source_file
+        description: "{{ doc('source_file') }} (the line's, or the ledger event's for `ledger_only`)."
+      - name: source_row
+        description: "{{ doc('source_row') }}"

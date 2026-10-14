@@ -12,3 +12,8 @@ clean-targets: [target, dbt_packages]
 
 flags:
   send_anonymous_usage_stats: false
+
+models:
+  fee_audit:
+    # Tables everywhere: the staging models are read several times downstream and DuckDB builds them in seconds.
+    +materialized: table

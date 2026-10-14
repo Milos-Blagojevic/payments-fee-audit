@@ -127,3 +127,17 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Why:** the spread is a real cost of the payout provider and D11/D12 overcharges sit in it.
 - **Alternatives:** fees only, excluding FX.
 - **Set in:** `generator/calibration.py`.
+
+## A19 Ledger watermark and pending lines
+
+- **Default:** the ledger is complete for every event before 00:00 UTC of its latest export date (the file for export date D holds the events of D − 1). A provider line for an event at or after that time with no ledger match is `unmatched_pending`, not an unknown charge; a ledger event in a provider month after the provider's last statement is `ledger_only` with reason `not_billed_yet`.
+- **Why:** the ledger export lags a day (N07); a line the ledger cannot have yet is not evidence of a phantom charge.
+- **Alternatives:** the latest event timestamp in the ledger (depends on traffic at the end of the day); a fixed cut-off date in configuration.
+- **Set in:** `dbt/models/intermediate/int_ledger_watermark.sql`, `int_reconciliation.sql`.
+
+## A20 Reconciliation tie-breaks
+
+- **Default:** when several lines carry the same event reference and component, the first by statement month, then line id, is the match and every other one is a `duplicate` (D06). A fallback pair is kept only when the line and the ledger event × component are each other's closest candidate in time (ties by event id, then line id); a line with no such partner stays unmatched.
+- **Why:** deterministic, one-to-one, and the provider's own numbering puts the original before a re-billed copy.
+- **Alternatives:** an optimal assignment (Hungarian matching) over the fallback candidates; flagging every line of a duplicated event.
+- **Set in:** `dbt/models/intermediate/int_reconciliation.sql`.

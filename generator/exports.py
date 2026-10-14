@@ -147,10 +147,17 @@ def northgate(cfg, out, lines, info, pay, refunds, chargebacks, world, unique_ke
     ids[order] = [f"NG{i:09d}" for i in range(1, n + 1)]
     event_id = _event_ids(sub, pay, refunds, chargebacks)
     is_month = sub["ev_type"] == MONTH
+    # Anomaly lines come last and draw no line-level noise, so the N05 and N01 draws of every other line are the
+    # same with or without them (N04 and N06 are drawn per event and apply to all of an event's lines).
+    nb = int((sub["anomaly"] == "").sum())
+    assert (sub["anomaly"][:nb] == "").all()
 
-    n05 = (rng.random(n) < cfg["noise"]["N05"]["share"]) & ~is_month
-    which = rng.integers(0, 3, n)
-    pick = rng.integers(1, 4, n)
+    def draw(values, fill):
+        return np.concatenate([values, np.full(n - nb, fill, values.dtype)])
+
+    n05 = (draw(rng.random(nb), 1.0) < cfg["noise"]["N05"]["share"]) & ~is_month
+    which = draw(rng.integers(0, 3, nb), 0)
+    pick = draw(rng.integers(1, 4, nb), 1)
     brand_pick = np.where(n05 & (which == 0), pick, 0)
     product_pick = np.where(n05 & (which == 1), pick, 0)
     currency_noisy = n05 & (which == 2)
@@ -171,7 +178,7 @@ def northgate(cfg, out, lines, info, pay, refunds, chargebacks, world, unique_ke
         np.where(is_month, "", world["client_id"][np.maximum(sub["client"], 0)]),
         np.where(is_month, "", lt),
         period_col,
-        np.array(NG_LINE_TYPES, dtype=object)[sub["component"]],
+        np.array(NG_LINE_TYPES + info["extra_line_types"], dtype=object)[sub["component"]],
         np.where(is_month, "", txn_amount),
         np.where(is_month, "", txn_currency),
         _variant(NG_BRANDS, sub["scheme"], brand_pick),
@@ -184,7 +191,7 @@ def northgate(cfg, out, lines, info, pay, refunds, chargebacks, world, unique_ke
               "card_brand", "card_product", "card_region", "fee_amount", "fee_currency"]
     n01_month = cfg["noise"]["N01"]["files"].get("northgate")
     dup = (file_month == (months.tolist().index(n01_month) if n01_month in months.tolist() else -1)) \
-        & (sub["truth"] == "") & ~is_month & (rng.random(n) < cfg["noise"]["N01"]["share"])
+        & (sub["truth"] == "") & ~is_month & (draw(rng.random(nb), 1.0) < cfg["noise"]["N01"]["share"])
     base = f"{RAW}/northgate/settlement_lines"
     file_of, row_of, dups = _write_files(out, base, "northgate_settlement", months, file_month, order, columns, header,
                                          dup, {comma_idx: ";"})

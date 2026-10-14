@@ -67,10 +67,10 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 
 ## A10 Anomaly model
 
-- **Default:** robust z-score of the daily effective rate per provider, fee component and card segment against a 28-day rolling median (MAD), threshold 4.
+- **Default:** robust z-score of the daily effective rate per provider, fee component and card segment (billed amount of the day's card events in basis points of that day's processed volume, M01 by UTC day) against the median of the previous 28 days: z = 0.6745 × (rate − median) ÷ MAD; flagged when |z| > 4. A day is scored once its window holds 28 data points; the MAD = 0 case is A42. Payout fees (no card segment, no card volume) are covered by the new-component check only (A43).
 - **Why:** explainable in one sentence and resistant to the outliers it is looking for.
-- **Alternatives:** seasonal decomposition; isolation forests (harder to explain).
-- **Set in:** the anomaly detection model (spec section 10).
+- **Alternatives:** seasonal decomposition; isolation forests (harder to explain); a rate per payment count instead of per volume.
+- **Set in:** dbt vars `anomaly_window_days` and `anomaly_z_threshold` (`dbt/dbt_project.yml`); `dbt/models/intermediate/int_daily_component_rates.sql`.
 
 ## A11 All card payments are in EUR
 
@@ -127,3 +127,108 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Why:** the spread is a real cost of the payout provider and D11/D12 overcharges sit in it.
 - **Alternatives:** fees only, excluding FX.
 - **Set in:** `generator/calibration.py`.
+
+## A19 Ledger watermark and pending lines
+
+- **Default:** the ledger is complete for every event before 00:00 UTC of its latest export date (the file for export date D holds the events of D − 1). A provider line for an event at or after that time with no ledger match is `unmatched_pending`, not an unknown charge; a ledger event in a provider month after the provider's last statement is `ledger_only` with reason `not_billed_yet`.
+- **Why:** the ledger export lags a day (N07); a line the ledger cannot have yet is not evidence of a phantom charge.
+- **Alternatives:** the latest event timestamp in the ledger (depends on traffic at the end of the day); a fixed cut-off date in configuration.
+- **Set in:** `dbt/models/intermediate/int_ledger_watermark.sql`, `int_reconciliation.sql`.
+
+## A20 Reconciliation tie-breaks
+
+- **Default:** when several lines carry the same event reference and component, the first by statement month, then line id, is the match and every other one is a `duplicate` (D06). A fallback pair is kept only when the line and the ledger event × component are each other's closest candidate in time (ties by event id, then line id); a line with no such partner stays unmatched.
+- **Why:** deterministic, one-to-one, and the provider's own numbering puts the original before a re-billed copy.
+- **Alternatives:** an optimal assignment (Hungarian matching) over the fallback candidates; flagging every line of a duplicated event.
+- **Set in:** `dbt/models/intermediate/int_reconciliation.sql`.
+
+## A21 Markup lines that read as two errors
+
+- **Default:** a markup line whose billed amount equals both the previous contract version's rate for the same tier (`stale_rate`) and the first tier's rate (`retroactive_tier_not_applied`) takes the reading that the provider × month's unambiguous markup lines show more often; on a tie it is `stale_rate`.
+- **Why:** on small payments the two rates round to the same cent; the month shows which error the provider made (a stale rate after an amendment, or a tier applied only from the threshold).
+- **Alternatives:** always prefer one type; report such lines as `fee_mismatch`.
+- **Set in:** `dbt/models/intermediate/int_charge_comparison.sql`.
+
+## A22 Reference date for dispute deadlines
+
+- **Default:** `days_left` counts from the dbt var `as_of_date`, default `2026-07-15` (two weeks after the synthetic period ends), not from the run date.
+- **Why:** the build must reproduce the same numbers on any day; the date is just late enough that the last invoices are open and the early ones have expired.
+- **Alternatives:** the run date (`current_date`), which changes every number in M07 daily.
+- **Set in:** `vars.as_of_date` in `dbt/dbt_project.yml`; override with `dbt build --vars '{as_of_date: 2026-08-01}'`.
+
+## A23 Provider comparison
+
+- **Default:** every succeeded card payment is priced under each card contract version in force at its time: payment-level fees only (interchange and scheme fee, markup and fixed fee; or the blended rate), the markup tier taken from that provider's actual month volume. Refund and chargeback fees, minimums and volume discounts are left out; months are UTC.
+- **Why:** answers "what would this volume have cost there" with the terms that scale with volume, without simulating how moving volume would change the other provider's tiers.
+- **Alternatives:** re-tiering the alternative with the moved volume; including refund, chargeback and monthly terms.
+- **Set in:** `dbt/models/marts/fct_provider_comparison.sql`.
+
+## A24 Invoice a finding is disputed on
+
+- **Default:** a finding belongs to the invoice of the statement its line arrived in (a late line, N04, goes with the next month's invoice); a charge with no line of its own (a missing markup credit) to the statement of the event's other lines; a provider × month finding to that month's invoice. The dispute deadline is that invoice's date plus the contract's `dispute_window_days`.
+- **Why:** the dispute window starts with the invoice that billed (or should have billed) the charge.
+- **Alternatives:** the invoice of the event month regardless of where the line arrived.
+- **Set in:** `dbt/models/intermediate/int_charge_comparison.sql`, `dbt/models/marts/fct_findings.sql`.
+
+## A30 Every client invoice month is checked
+
+- **Default:** client billing is checked for every month, the last period month included; no client finding is pending.
+- **Why:** Fernway builds its client invoices from the same ledger export the checks read (A12), so the last month's invoice already excludes the lag day and the ledger fully covers what it bills, month-level terms (volume tier, promotion, platform fee) included.
+- **Alternatives:** treat month-level client checks of a month the ledger does not fully cover as pending, as for provider months (A19); that would hold back real leakage in the last month.
+- **Set in:** `dbt/models/intermediate/int_expected_client_billing.sql`, `int_client_billing_comparison.sql`.
+
+## A31 Client findings are corrected, not disputed
+
+- **Default:** a client finding belongs to Fernway's invoice for that client × month. Its `dispute_deadline` is the invoice date plus the agreement's `dispute_window_days`: the period in which the invoice is open to query and Fernway issues a correction. Most client findings are revenue leakage (billed too little), which Fernway recovers by invoicing the difference.
+- **Why:** these are Fernway's own invoices; there is no provider to dispute with, but the agreement's window is the natural deadline for correcting them.
+- **Alternatives:** no deadline (leave the columns null); the provider-side dispute queue (not applicable to Fernway's own invoices).
+- **Set in:** `dbt/models/marts/fct_client_billing_findings.sql`; `dispute_window_days` in `contracts/clients/*.yml`.
+
+## A32 Client margin: which costs, which month
+
+- **Default:** a client's provider costs are the invoiced provider fees of its ledger events (payouts by execution), by UTC month; a line without a ledger event goes to the client the provider reported. Monthly charges without an event are split by volume share in the provider's month (A09): the monthly minimum by processed volume, the volume adjustment by EEA consumer volume (the volume each term is computed on), in whole cents with largest remainders. The FX spread (M08) of the client's payouts is a cost too, since the client FX markup is priced to cover it. Fees on lines after the ledger watermark are shown as pending and kept out of the month's margin, because the lag day is billed to clients in the next cycle (A12).
+- **Why:** revenue and costs then cover the same events; event-level costs are traceable, and the volume a monthly term is computed on is the fairest key for that term.
+- **Alternatives:** fees only, without the FX spread; one volume key for every monthly charge; include the lag day's fees in the last month's margin.
+- **Set in:** `dbt/models/intermediate/int_provider_cost_allocation.sql`, `dbt/models/marts/fct_client_margin.sql`.
+
+## A33 Client leakage rules
+
+- **Default:** a client invoice line (client × month × component) that differs from the agreement by at least one minor unit is `rail_not_billed` when a payout rail with expected fees has no line, `fx_markup_not_billed` when expected FX markup has no line, `promo_after_end_date` when the billed promotional discount equals the promotion applied to the whole month and the promotion ended before the month's last day, `volume_discount_too_high` when the billed volume discount equals the discount of a higher tier than the month's volume earns, `rounding` for a one-unit difference that the other rounding mode explains, and `fee_mismatch` otherwise.
+- **Why:** each rule names the billing error a finance team would fix, and requiring the billed amount to match the error pattern keeps every other difference visible as `fee_mismatch`.
+- **Alternatives:** classify by component only (any missing or larger discount is the matching leakage type).
+- **Set in:** `dbt/models/intermediate/int_client_billing_comparison.sql`.
+
+## A40 Northgate line types the data contract does not list
+
+- **Default:** an unlisted Northgate `line_type` is a fee component of its own (its lower-case name); the line is month-level when it carries a `period`, otherwise a charge on the payment the row describes, matched to the ledger like the payment's other lines.
+- **Why:** a provider can start billing a new fee type at any time; the engine must reconcile and count it rather than drop it or fail the build.
+- **Alternatives:** read the event type from the reference prefix (`pay_`, `ref_`, `cb_`); reject unknown line types in staging.
+- **Set in:** `dbt/models/intermediate/int_provider_lines.sql`.
+
+## A41 Components no contract names are outside the rules
+
+- **Default:** a billed component that no version of the provider's contract names gets no rule classification: not `fee_mismatch`, and not `unknown_charge` when its event is in the ledger (a line of an event missing from the ledger is still `unknown_charge`). It is reconciled, matched and counted in `fct_provider_costs` (expected 0) like any other line; the anomaly model judges it.
+- **Why:** the rules compare billed amounts with contract terms; a charge no term describes is the case anomaly detection exists for, and calling it a mismatch of a term that does not exist would misstate the clause.
+- **Alternatives:** report every such line as `fee_mismatch`; a dedicated rule type for charges without a clause.
+- **Set in:** `dbt/models/intermediate/int_charge_comparison.sql` (`component_has_term`).
+
+## A42 Robust z-score when the MAD is 0
+
+- **Default:** when at least half of the window's rates equal the median (MAD = 0), z = (rate − median) ÷ (1.2533 × mean absolute deviation from the median); when that is also 0 the baseline is constant and any other rate is flagged (z is null).
+- **Why:** sparse series (chargeback fees on a small card segment, most days 0) have MAD = 0; dividing by it would flag every non-zero day. The mean-absolute-deviation fallback is the usual companion of the MAD score (1.2533 makes both consistent with a normal standard deviation).
+- **Alternatives:** skip days with MAD = 0; add a floor to the MAD; flag any deviation from the median.
+- **Set in:** `dbt/models/intermediate/int_daily_component_rates.sql`.
+
+## A43 New fee component
+
+- **Default:** a `new_component` anomaly on the first day (event date, UTC) a provider bills a component that no version of its contract names, provided the provider has at least `anomaly_window_days` (28) days of billing history before it. Card segment `all`; baseline 0 bps.
+- **Why:** "never seen before" needs history; components the contract names are known to the engine even before they are first billed (a first chargeback fee, a minimum in its first month).
+- **Alternatives:** flag every component first billed after the first statement month, named or not; one anomaly per card segment.
+- **Set in:** `dbt/models/marts/fct_anomalies.sql`.
+
+## A44 Anomalies that become findings
+
+- **Default:** an anomaly is explained by rule findings when all of the day's money beyond the contract belongs to charges a rule classifies, and by the contract when every charge of the day equals its expected amount (a new tier, contract version or card mix); only unexplained anomalies become findings (`method = 'anomaly'` in `fct_findings`), one per provider × component × card segment × day, with the day's unexplained lines, the baseline rate's amount as expected (0 for a new component) and the contract version in force. They are not disputed (`fct_dispute_queue` and `fct_invoice_reconciliation` count rule findings only) and the evaluation does not score them.
+- **Why:** a rate shift the contract or a rule already accounts for needs no second finding; an anomaly is a lead to investigate, not a claim with a clause behind it.
+- **Alternatives:** a finding for every flagged day; one finding per anomaly episode instead of per day.
+- **Set in:** `dbt/models/marts/fct_anomalies.sql`, `dbt/models/marts/fct_findings.sql`.

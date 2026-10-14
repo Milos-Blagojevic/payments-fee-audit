@@ -28,6 +28,11 @@ TRUTH_TYPES = {
         "event_id": "VARCHAR",
     },
     "parameters": {"parameter": "VARCHAR", "value": "VARCHAR"},
+    "anomalies": {
+        "anomaly_id": "VARCHAR", "provider": "VARCHAR", "component": "VARCHAR", "line_type": "VARCHAR",
+        "card_segment": "VARCHAR", "start_date": "DATE", "rate_bps": "INTEGER", "lines": "BIGINT",
+        "billed_minor": "BIGINT", "currency": "VARCHAR",
+    },
 }
 
 

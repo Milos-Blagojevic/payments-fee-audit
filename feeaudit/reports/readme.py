@@ -12,6 +12,9 @@ from pathlib import Path
 
 import duckdb
 
+from feeaudit.extraction.budget import load_ledger, spent, usd
+from feeaudit.extraction.extract import LEDGER, OUT_DIR, RECORDED
+from feeaudit.extraction.score import accuracy
 from feeaudit.reports import client, finance
 from feeaudit.reports.common import dbt_var, eur, label, md_table, rows
 from feeaudit.verify import DBT_TABLE, REFERENCE_TABLE, compare
@@ -20,6 +23,7 @@ BLOCK = re.compile(r"(<!-- generated:([\w-]+) -->\n)(.*?)(<!-- /generated -->)",
 
 CHART_PATH = Path("docs/img/money-found-by-type.svg")
 MANIFEST = Path("dbt/target/manifest.json")
+SPEND_LEDGER = OUT_DIR / RECORDED / LEDGER
 
 # Section 3: the clause quoted from the real files.
 CLAUSE_YAML = Path("contracts/providers/northgate-v2.yml")
@@ -340,6 +344,49 @@ def block_revenue_side(con) -> str:
     ])
 
 
+def block_extraction(con) -> str:
+    """Accuracy of the recorded LLM extractions (evaluation.extraction_scores) and what they cost (spend ledger)."""
+    calls = load_ledger(SPEND_LEDGER)["calls"]
+    if not calls:
+        return "No extraction has been recorded yet: `contracts/extracted/` is empty, so there is nothing to score."
+    versions = rows(
+        con,
+        """
+        select contract, version, count(*) filter (where correct) as correct, count(*) as total
+        from evaluation.extraction_scores group by all order by contract, version
+        """,
+    )
+    wrong = rows(
+        con,
+        """
+        select contract, version, field_path, expected, extracted from evaluation.extraction_scores
+        where not correct order by contract, version, field_path
+        """,
+    )
+    correct, total = sum(v["correct"] for v in versions), sum(v["total"] for v in versions)
+    models = sorted({c["model"] for c in calls})
+    parts = [
+        f"{len(calls)} recorded call(s) to {', '.join(f'`{m}`' for m in models)} cost USD {usd(spent(load_ledger(SPEND_LEDGER)))} "
+        f"in total. Field accuracy against the hand-written contract files: {accuracy(correct, total)} "
+        f"({correct:,} of {total:,} fields).",
+        md_table(
+            ["Contract", "Version", "Fields correct", "Accuracy"],
+            [[v["contract"], str(v["version"]), f"{v['correct']:,} / {v['total']:,}", accuracy(v["correct"], v["total"])]
+             for v in versions],
+            "lrrr",
+        ),
+    ]
+    if wrong:
+        parts.append("Fields the model got wrong (each would be caught at the approval step):")
+        parts.append(md_table(
+            ["Contract", "Version", "Field", "Contract file", "Extracted"],
+            [[w["contract"], str(w["version"]), f"`{w['field_path']}`", f"`{w['expected']}`", f"`{w['extracted']}`"]
+             for w in wrong],
+            "lrlll",
+        ))
+    return "\n\n".join(parts)
+
+
 def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
     return {
         "headline": block_headline(con, as_of),
@@ -353,6 +400,7 @@ def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
         "anomalies": block_anomalies(con),
         "examples": block_examples(con, finance.example_pack(con)),
         "revenue-side": block_revenue_side(con),
+        "extraction": block_extraction(con),
     }
 
 

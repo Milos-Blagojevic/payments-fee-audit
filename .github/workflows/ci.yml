@@ -17,5 +17,9 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: make install
       - run: make all
+      - name: Committed examples and README match the build
+        run: |
+          git status --porcelain reports/examples README.md docs/img
+          test -z "$(git status --porcelain reports/examples README.md docs/img)"
+          git diff --exit-code reports/examples README.md docs/img
       - run: make test
-      - run: make extraction-score

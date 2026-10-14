@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build test all clean extraction-score
+.PHONY: install contracts data build verify eval extraction-score report test all clean
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -20,6 +20,19 @@ data:
 build:
 	$(DBT) build $(DBT_ARGS)
 
+# Python reference engine (schema `reference`), then the differential check against int_expected_charges.
+verify:
+	$(PYTHON) -m feeaudit.reference
+	$(PYTHON) -m feeaudit.verify
+
+# Compare the findings with schema `truth`, write schema `evaluation`, fail below the thresholds.
+eval:
+	$(PYTHON) -m feeaudit.evaluation
+
+# Finance outputs to reports/, the committed sample in reports/examples/, the README blocks and docs/img chart.
+report:
+	$(PYTHON) -m feeaudit.reports
+
 test:
 	$(PYTHON) -m pytest
 
@@ -28,7 +41,7 @@ test:
 extraction-score:
 	$(PYTHON) -m feeaudit.extraction score
 
-all: clean contracts data build
+all: clean contracts data build verify eval extraction-score report
 
 clean:
 	rm -rf data

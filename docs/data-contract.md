@@ -108,6 +108,7 @@ N01 exact duplicate rows (same line id) in a re-exported file; N02 Brightpay amo
 - `client_leakage`: `truth_id` (L01..L04), `client_id`, `month`, `component`, `correct_minor`, `billed_minor`, `difference_minor`.
 - `noise_events`: `truth_id` (N01..N08), `source_file`, `source_row`, `line_id`, `event_id`.
 - `parameters`: every generator parameter and the seed.
+- `anomalies`: `anomaly_id` (X01..), `provider`, `component`, `line_type`, `card_segment` (`all`, `eea_consumer` or `other`), `start_date`, `rate_bps`, `lines`, `billed_minor`, `currency` (section 8.8).
 
 ## 8. Provider exports and invoices
 
@@ -124,7 +125,7 @@ Written by `python -m generator` under `data/raw/` (git-ignored) and loaded by `
 | `merchant_ref` | Client id |
 | `txn_time` | Event time in Europe/Berlin local time, `YYYY-MM-DD HH:MM:SS`, no offset (N03) |
 | `period` | `YYYY-MM`, only on `MONTHLY_MINIMUM` lines |
-| `line_type` | `INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE` (per successful payment), `REFUND_FEE`, `MARKUP_CREDIT` (per refund), `CHARGEBACK_FEE`, `MONTHLY_MINIMUM` |
+| `line_type` | `INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE` (per successful payment), `REFUND_FEE`, `MARKUP_CREDIT` (per refund), `CHARGEBACK_FEE`, `MONTHLY_MINIMUM`; from its start date, the line type of a planted anomaly (8.8, default `NETWORK_ACCESS_FEE`, per successful payment) |
 | `txn_amount`, `txn_currency` | Event amount in major units and its currency (N05: `eur`, ` EUR`, `Eur`, …) |
 | `card_brand`, `card_product`, `card_region` | `VISA`/`MASTERCARD`, `CONSUMER_DEBIT`/`CONSUMER_CREDIT`/`COMMERCIAL`, `DOMESTIC`/`INTRA_EEA`/`INTER_REGIONAL`; N05 variants: `Visa`, `visa`, `VISA `, `MC`, `Mastercard`, `mastercard`, `Consumer Debit`, `consumer-debit`, `Commercial`, `commercial ` |
 | `fee_amount`, `fee_currency` | Fee in major units, negative for `MARKUP_CREDIT`; currency `EUR` |
@@ -202,6 +203,26 @@ How Fernway bills (the generator's rules, which the client checks reproduce):
 
 ### 8.7 Truth files
 
-`data/truth/discrepancies.csv`, `client_leakage.csv`, `noise_events.csv`, `parameters.csv`, loaded into schema `truth` with typed columns (`line_ids` as `VARCHAR[]`). `difference_minor = billed_minor − correct_minor`. Month-level types (D02, D05, D10) have no `event_id`; their `line_ids` list every line whose amount was changed (none for D10). D04 lists the refund's `REFUND_FEE` line; D11/D12 money is on the EUR debit (D11 correct = the cap allowance), D13 on the fee. Only lines whose billed amount differs from the correct amount are planted, so every discrepancy is at least one minor unit. Noise rows give `source_file` and `source_row` of the affected line; file-level noise (N02 per file in minor units or with comma decimals, N03 per Northgate file) has an empty `source_row`. `parameters` holds every config key (dotted path) with its JSON value.
+`data/truth/discrepancies.csv`, `client_leakage.csv`, `noise_events.csv`, `parameters.csv`, `anomalies.csv`, loaded into schema `truth` with typed columns (`line_ids` as `VARCHAR[]`). `difference_minor = billed_minor − correct_minor`. Month-level types (D02, D05, D10) have no `event_id`; their `line_ids` list every line whose amount was changed (none for D10). D04 lists the refund's `REFUND_FEE` line; D11/D12 money is on the EUR debit (D11 correct = the cap allowance), D13 on the fee. Only lines whose billed amount differs from the correct amount are planted, so every discrepancy is at least one minor unit. Noise rows give `source_file` and `source_row` of the affected line; file-level noise (N02 per file in minor units or with comma decimals, N03 per Northgate file) has an empty `source_row`. `parameters` holds every config key (dotted path) with its JSON value.
 
 Planting rules beyond section 5: D02 orders the month's payments by (`created_at`, payment id) and bills at the first tier rate every payment whose running volume, itself included, is below the threshold. D12 uses the provider's normal spread on the mid of a worse hour within ±6 h, and only where the billed debit stays at or below the D11 allowance. D14 is planted on Northgate (every non-zero line of a payment that is not in the ledger) and Brightpay, not on Kestrel (a phantom payout would also debit its principal). Month-level types are never planted in the last period month.
+
+### 8.8 Planted anomalies (X01..)
+
+Patterns that no contract rule describes, configured under `anomalies` in `config/generator.yml` (on by default) and recorded in `truth.anomalies`; the evaluation reports them without a target (spec section 12). Default X01: from 2026-05-15 (UTC `created_at`), Northgate bills a new line type `NETWORK_ACCESS_FEE` of `round(amount × 4 / 10000)` (contract rounding mode) on every successful payment of the configured card segment (`all` by default) that is in the ledger. No contract version names the component, so its correct charge is 0, but it is neither a discrepancy nor a finding of a rule. An anomaly line is a Northgate line like any other: it is in the statement file of its event, counted in the invoice total, takes the event's N04 file shift, N06 missing reference and N07 lag (those noise rows list it), and draws no line-level noise (N01, N05). Anomaly lines are added after every D plant and draw no randomness, so D, N and L planting is the same with or without them; only line ids (numbered in file order) move. `lines` and `billed_minor` count the exported anomaly lines.
+
+## 9. Engine readings
+
+Where sections 1–7 leave a choice, the dbt engine reads them as follows (reasoning in `ASSUMPTIONS.md`):
+
+- Payouts are dated by `executed_at` for the contract version, month, FX hour and rail fee (A13).
+- Provider lines after the ledger watermark, and month-level rows for a month the ledger does not fully cover, are pending: compared later, never findings (A19).
+- Reference matching first, then the fallback among ledger events not matched by reference, one-to-one with deterministic tie-breaks; a second line of the same event × component is the duplicate (A20).
+- A markup line that equals both the stale rate and the first-tier rate takes the reading the month's unambiguous lines show (A21).
+- `days_left` counts from the dbt var `as_of_date` (A22); a finding belongs to the invoice its line arrived on (A24).
+- `int_expected_charges` has the same rows as the Python reference engine's `reference.expected_charges`; `make verify` requires exact equality.
+- Client billing is checked for every month, the last included: the invoices are built from the same ledger export (A30). Client findings are client × month × invoice line component, classified by the rules of A33, and corrected on Fernway's own invoice (A31).
+- Client margin: provider fees by the event they belong to, monthly charges by volume share, plus the FX spread; lines after the watermark are pending (A32).
+- A Northgate line type section 8.1 does not list is a fee component of its own (its lower-case name), month-level when it carries a `period`, otherwise a charge on the payment the row describes (A40).
+- A billed component that no version of the provider's contract names is outside every rule: it is reconciled and counted in the provider costs, but it is neither `fee_mismatch` nor, when its event is in the ledger, `unknown_charge` (A41). The anomaly model looks at it.
+- Anomaly detection (spec section 10): daily effective rate per provider × component × card segment against the trailing 28-day median with a MAD robust z-score, threshold 4, and a fallback when the MAD is 0 (A10, A42); a new fee component on its first day (A43); findings with `method = 'anomaly'` only for anomalies that neither a rule finding nor the contract explains (A44).

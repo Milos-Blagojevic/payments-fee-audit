@@ -12,3 +12,16 @@ clean-targets: [target, dbt_packages]
 
 flags:
   send_anonymous_usage_stats: false
+
+vars:
+  # Reference date for dispute deadlines (`days_left`) in fct_findings and fct_dispute_queue (A22).
+  as_of_date: "2026-07-15"
+  # Anomaly detection (spec 10, A10): trailing window of the rolling median and MAD, in days (also the history a
+  # provider needs before a fee component counts as new, A43), and the robust z-score threshold.
+  anomaly_window_days: 28
+  anomaly_z_threshold: 4
+
+models:
+  fee_audit:
+    # Tables everywhere: the staging models are read several times downstream and DuckDB builds them in seconds.
+    +materialized: table

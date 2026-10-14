@@ -1,0 +1,64 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Source files loaded as-is by `python -m feeaudit.load` (docs/data-contract.md sections 3 and 8): every
+      source column as VARCHAR with the source's own name, plus `source_file` and `source_row`. Parsing happens
+      only in the staging models.
+    schema: raw
+    tables:
+      - name: ledger__payments
+        description: Fernway ledger, card payment attempts (succeeded, declined, failed); daily export files that lag one day.
+      - name: ledger__refunds
+        description: Fernway ledger, full refunds of card payments.
+      - name: ledger__chargebacks
+        description: Fernway ledger, chargebacks of card payments.
+      - name: ledger__payouts
+        description: Fernway ledger, payouts to sellers in EUR, GBP, USD, CHF or PLN.
+      - name: fernway__clients
+        description: Fernway's marketplace clients and their card provider (with mid-period switches).
+      - name: fx__mid_hourly
+        description: Synthetic hourly FX mid rates per pair, units of the target currency per 1 EUR, six decimals.
+      - name: northgate__settlement_lines
+        description: >
+          Northgate settlement export, one row per fee line, one file per statement month. Major units (the March
+          file with `;` and decimal commas), Europe/Berlin local timestamps, label variants, re-exported rows.
+      - name: brightpay__transactions_export
+        description: >
+          Brightpay transactions export, one row per payment attempt, refund and chargeback with its all-in fee,
+          minor units, UTC timestamps, one file per statement month.
+      - name: brightpay__adjustments
+        description: Brightpay monthly adjustments (marginal volume discount credits), minor units.
+      - name: kestrel__payouts_statement
+        description: >
+          Kestrel payouts statement, one row per payout with its fee, applied FX rate, rate timestamp and EUR
+          debited, major units, one file per UTC month of execution.
+      - name: northgate__invoices
+        description: Northgate monthly invoices, total in major units.
+      - name: brightpay__invoices
+        description: Brightpay monthly invoices, total in minor units.
+      - name: kestrel__invoices
+        description: Kestrel monthly invoices, total of payout fees in major units.
+      - name: fernway__client_invoices
+        description: Invoices Fernway sent to its clients, one per client and month.
+      - name: fernway__client_invoice_lines
+        description: Lines of the invoices Fernway sent to its clients.
+
+  - name: contracts
+    description: >
+      Provider contracts and client pricing agreements, validated and loaded from `contracts/**/*.yml` by
+      `python -m feeaudit.contracts`.
+    schema: contracts
+    tables:
+      - name: contract_versions
+        description: One row per contract version, with its validity, time zone, rounding and dispute window.
+        data_tests:
+          - contiguous_versions:
+              arguments:
+                contract_column: contract_id
+                version_column: version
+                from_column: effective_from
+                to_column: effective_to
+      - name: contract_terms
+        description: One row per contract version × clause, with its parameters as typed columns and as JSON.

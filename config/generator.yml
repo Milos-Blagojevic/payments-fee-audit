@@ -116,3 +116,7 @@ leakage:
   L02: {clients: 2, extra_months: 2}   # promo applied after its end date
   L03: {clients: 1}                    # FX markup not billed
   L04: {share: 0.1}                    # client-months billed one discount tier too high
+
+anomalies:   # patterns no contract rule describes (spec 10); reported by the evaluation, never a target
+  X01: {enabled: true, provider: northgate, line_type: NETWORK_ACCESS_FEE, segment: all, start: 2026-05-15, bps: 4}
+  # X01: Northgate starts billing a fee type of its own, 4 bps of every payment from this UTC date on

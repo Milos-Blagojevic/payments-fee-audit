@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build test all clean
+.PHONY: install contracts data build eval test all clean
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -19,6 +19,10 @@ data:
 
 build:
 	$(DBT) build $(DBT_ARGS)
+
+# Compare the findings with schema `truth`, write schema `evaluation`, fail below the thresholds.
+eval:
+	$(PYTHON) -m feeaudit.evaluation
 
 test:
 	$(PYTHON) -m pytest

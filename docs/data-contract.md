@@ -219,6 +219,8 @@ Where sections 1–7 leave a choice, the dbt engine reads them as follows (reaso
 - A markup line that equals both the stale rate and the first-tier rate takes the reading the month's unambiguous lines show (A21).
 - `days_left` counts from the dbt var `as_of_date` (A22); a finding belongs to the invoice its line arrived on (A24).
 - `int_expected_charges` has the same rows as the Python reference engine's `reference.expected_charges`; `make verify` requires exact equality.
+- Client billing is checked for every month, the last included: the invoices are built from the same ledger export (A30). Client findings are client × month × invoice line component, classified by the rules of A33, and corrected on Fernway's own invoice (A31).
+- Client margin: provider fees by the event they belong to, monthly charges by volume share, plus the FX spread; lines after the watermark are pending (A32).
 - A Northgate line type section 8.1 does not list is a fee component of its own (its lower-case name), month-level when it carries a `period`, otherwise a charge on the payment the row describes (A40).
 - A billed component that no version of the provider's contract names is outside every rule: it is reconciled and counted in the provider costs, but it is neither `fee_mismatch` nor, when its event is in the ledger, `unknown_charge` (A41). The anomaly model looks at it.
 - Anomaly detection (spec section 10): daily effective rate per provider × component × card segment against the trailing 28-day median with a MAD robust z-score, threshold 4, and a fallback when the MAD is 0 (A10, A42); a new fee component on its first day (A43); findings with `method = 'anomaly'` only for anomalies that neither a rule finding nor the contract explains (A44).

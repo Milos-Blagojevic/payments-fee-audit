@@ -14,7 +14,7 @@ models:
         description: Stable hash of the finding's inputs (method, party, provider, type, month, event, component, line ids).
         data_tests: [unique, not_null]
       - name: party
-        description: "`provider` (client findings come with the client billing checks)."
+        description: "`provider` (client findings are in `fct_client_billing_findings`)."
         data_tests:
           - accepted_values:
               arguments:
@@ -465,3 +465,138 @@ models:
         description: All parameters of the term as JSON.
       - name: source_file
         description: The contract YAML file.
+
+  - name: fct_client_billing_findings
+    description: >
+      Client billing findings (spec section 9): every client invoice line (client × month × component) whose billed
+      amount differs from the pricing agreement by at least one minor unit. Same columns as `fct_findings` with
+      party `client`; `component` is the invoice line component. Negative differences are revenue leakage that
+      Fernway corrects on its own invoices; there is no provider dispute (A31). Every month is checked, the last one
+      included, because the invoices are built from the same ledger export (A30).
+    columns:
+      - name: finding_id
+        description: Stable hash of the finding's inputs (method, party, client, type, month, component, line ids).
+        data_tests: [unique, not_null]
+      - name: party
+        description: "`client`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [client]
+      - name: counterparty
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: finding_type
+        description: >
+          `rail_not_billed` (L01), `promo_after_end_date` (L02), `fx_markup_not_billed` (L03),
+          `volume_discount_too_high` (L04), `rounding` or `fee_mismatch` (anything no rule explains).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [rail_not_billed, promo_after_end_date, fx_markup_not_billed, volume_discount_too_high, rounding, fee_mismatch]
+      - name: month
+        description: First day of the UTC invoice month.
+        data_tests: [not_null]
+      - name: event_id
+        description: Always null (client findings are client × month × component).
+      - name: line_ids
+        description: Client invoice line ids (`<invoice_id>:<line_no>`); empty when the line is missing.
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('client_component') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }} of the agreement (`FW-<client_id>`)."
+        data_tests: [not_null]
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+        data_tests: [not_null]
+      - name: clause
+        description: "{{ doc('clause') }}"
+        data_tests: [not_null]
+      - name: expected_minor
+        description: What the agreement says Fernway should bill, minor units.
+        data_tests: [not_null]
+      - name: billed_minor
+        description: What the invoice billed, minor units.
+        data_tests: [not_null]
+      - name: difference_minor
+        description: billed − expected; negative = revenue leakage. Never below one minor unit in absolute value.
+        data_tests: [not_null]
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: direction
+        description: "`under` (billed too little) or `over`."
+      - name: formula
+        description: The expected calculation with real numbers and the clause used.
+        data_tests: [not_null]
+      - name: evidence
+        description: The invoice lines (file and rows) or their absence, the ledger events, and the agreement file and clause.
+        data_tests: [not_null]
+      - name: statement_month
+        description: The invoice month.
+      - name: invoice_id
+        description: Fernway's client invoice the finding corrects.
+        data_tests: [not_null]
+      - name: invoice_date
+        description: Invoice date.
+      - name: dispute_deadline
+        description: Invoice date + the agreement's `dispute_window_days`, the period in which the invoice is open to query and Fernway issues a correction (A31).
+      - name: days_left
+        description: Days from the `as_of_date` var to that date (negative = past, A22).
+      - name: method
+        description: "`rule`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [rule]
+
+  - name: fct_client_margin
+    description: >
+      Client × UTC month: what Fernway billed and should have billed (M09 revenue leakage), the provider costs of
+      the client's events (A09, A32) and the margin (M10). Revenue and costs cover the same events, the ledger
+      export: provider lines after the ledger watermark belong to the next billing cycle and are shown as pending.
+    columns:
+      - name: client_margin_id
+        description: "`<client_id>:<YYYY-MM>`."
+        data_tests: [unique, not_null]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC month.
+        data_tests: [not_null]
+      - name: volume_minor
+        description: Processed volume (succeeded card payments in the ledger), minor units.
+      - name: billed_minor
+        description: Actual client billing, the sum of the client's invoice lines (net of discounts), minor units.
+        data_tests: [not_null]
+      - name: expected_minor
+        description: What the pricing agreement says Fernway should have billed, minor units.
+        data_tests: [not_null]
+      - name: revenue_leakage_minor
+        description: M09 revenue leakage, expected − billed (positive = billed too little).
+        data_tests: [not_null]
+      - name: event_provider_fees_minor
+        description: Invoiced provider fees of the client's events (and of lines the provider reported for the client without a ledger event).
+      - name: volume_share_provider_fees_minor
+        description: The client's volume share of monthly provider charges without an event (minimums, volume adjustments).
+      - name: provider_fees_minor
+        description: Event plus volume-share provider fees, net of credits, excluding pending lines.
+        data_tests: [not_null]
+      - name: fx_spread_cost_minor
+        description: M08 FX spread cost of the client's converted payouts.
+        data_tests: [not_null]
+      - name: provider_cost_minor
+        description: Provider fees + FX spread cost.
+        data_tests: [not_null]
+      - name: margin_minor
+        description: M10 client margin, billed − provider fees − FX spread cost.
+        data_tests: [not_null]
+      - name: margin_bps
+        description: M10 ÷ processed volume in basis points (null without volume).
+      - name: pending_provider_fees_minor
+        description: Provider fees on lines after the ledger watermark, billed to the client in the next cycle (A12) and kept out of this margin.
+      - name: currency
+        description: "{{ doc('currency') }}"

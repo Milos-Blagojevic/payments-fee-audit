@@ -69,3 +69,7 @@ Version number of the contract.
 {% docs clause %}
 Clause id of the contract term, as cited in findings (for example `4.2`).
 {% enddocs %}
+
+{% docs client_component %}
+Client invoice line component (data contract section 4.2): `payment_fees`, `payout_fees_<rail>` (`sepa`, `faster_payments`, `swift`, `elixir`), `fx_markup`, `platform_fee`, `volume_discount` or `promo_discount`.
+{% enddocs %}

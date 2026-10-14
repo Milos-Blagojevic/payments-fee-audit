@@ -9,9 +9,9 @@ The switch that would have saved the most: moving Brightpay's `eea_consumer` vol
 | Segment | Processed by | Volume | Billed | Under own contract | Rate | Under the other contract | Rate | Saving if switched |
 |---|---|---|---:|---:|---:|---:|---:|---:|
 | eea_consumer | Brightpay | 10,307,622.05 | 176,554.71 | 175,563.44 | 1.703% | 72,982.25 (Northgate Acquiring) | 0.708% | 102,581.19 |
-| eea_consumer | Northgate Acquiring | 15,339,887.65 | 114,804.12 | 109,259.17 | 0.712% | 268,640.64 (Brightpay) | 1.751% | -159,381.47 |
+| eea_consumer | Northgate Acquiring | 15,339,887.65 | 116,713.66 | 109,259.17 | 0.712% | 268,640.64 (Brightpay) | 1.751% | -159,381.47 |
 | other | Brightpay | 1,017,670.39 | 32,619.92 | 32,570.38 | 3.200% | 20,871.82 (Northgate Acquiring) | 2.051% | 11,698.56 |
-| other | Northgate Acquiring | 1,490,661.70 | 31,346.33 | 30,643.97 | 2.056% | 48,476.81 (Brightpay) | 3.252% | -17,832.84 |
+| other | Northgate Acquiring | 1,490,661.70 | 31,528.69 | 30,643.97 | 2.056% | 48,476.81 (Brightpay) | 3.252% | -17,832.84 |
 
 ## By month
 

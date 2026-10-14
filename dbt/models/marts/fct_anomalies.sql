@@ -170,7 +170,7 @@ select
     case anomaly_type
         when 'new_component' then
             provider || ' bills ' || component || ' for the first time on ' || strftime(day, '%Y-%m-%d') || ': '
-            || line_count || ' lines, ' || {{ fmt_money('billed_minor') }} || ' EUR'
+            || format('{:,}', line_count) || ' lines, ' || {{ fmt_money('billed_minor') }} || ' EUR'
             || coalesce(
                 ' (' || cast(round(observed_rate_bps, 2) as varchar) || ' bps of the day''s processed volume of '
                 || {{ fmt_money('volume_minor') }} || ' EUR)',

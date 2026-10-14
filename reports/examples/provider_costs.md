@@ -22,8 +22,8 @@ Fees billed by each provider, by UTC month of the event, against the processed c
 | Northgate Acquiring | 2026-02 | 2,085,469.43 | 121,999 | 22,151.51 | 0.00 | 2,540.59 | 1.062% | +11.0% | +14.11 bp |
 | Northgate Acquiring | 2026-03 | 2,759,656.34 | 159,876 | 26,430.81 | 0.00 | 2,547.37 | 0.958% | +19.3% | -10.44 bp |
 | Northgate Acquiring | 2026-04 | 3,044,649.19 | 173,097 | 28,549.68 | 0.00 | 2,920.12 | 0.938% | +8.0% | -2.01 bp |
-| Northgate Acquiring | 2026-05 | 3,446,277.96 | 192,200 | 32,543.89 | 0.00 | 3,298.87 | 0.944% | +14.0% | +0.66 bp |
-| Northgate Acquiring | 2026-06 | 3,327,118.44 | 190,478 | 28,704.29 | 778.51 | 57.59 | 0.863% | -11.8% | -8.16 bp |
+| Northgate Acquiring | 2026-05 | 3,446,277.96 | 218,247 | 33,302.25 | 0.00 | 4,057.23 | 0.966% | +16.6% | +2.86 bp |
+| Northgate Acquiring | 2026-06 | 3,327,118.44 | 237,386 | 30,076.06 | 816.74 | 1,391.13 | 0.904% | -9.7% | -6.23 bp |
 
 ## By card segment
 
@@ -47,14 +47,14 @@ Payment, refund and chargeback fees whose payment has a known card segment.
 | Northgate Acquiring | eea_consumer | 2026-02 | 1,903,688.76 | 15,685.26 | 0.824% | 0.450% | -1.8% | +1.80 bp |
 | Northgate Acquiring | eea_consumer | 2026-03 | 2,509,851.45 | 20,956.49 | 0.835% | 0.441% | +33.6% | +1.11 bp |
 | Northgate Acquiring | eea_consumer | 2026-04 | 2,772,581.48 | 20,331.17 | 0.733% | 0.332% | -3.0% | -10.17 bp |
-| Northgate Acquiring | eea_consumer | 2026-05 | 3,126,436.87 | 25,557.78 | 0.817% | 0.414% | +25.7% | +8.42 bp |
-| Northgate Acquiring | eea_consumer | 2026-06 | 3,045,424.31 | 22,107.32 | 0.726% | 0.320% | -13.5% | -9.16 bp |
+| Northgate Acquiring | eea_consumer | 2026-05 | 3,126,436.87 | 26,246.76 | 0.840% | 0.414% | +29.1% | +10.62 bp |
+| Northgate Acquiring | eea_consumer | 2026-06 | 3,045,424.31 | 23,327.88 | 0.766% | 0.320% | -11.1% | -7.35 bp |
 | Northgate Acquiring | other | 2026-01 | 185,473.21 | 3,990.32 | 2.151% | 0.450% |  |  |
 | Northgate Acquiring | other | 2026-02 | 181,780.67 | 3,963.60 | 2.180% | 0.450% | -0.7% | +2.90 bp |
 | Northgate Acquiring | other | 2026-03 | 249,804.89 | 5,474.32 | 2.191% | 0.440% | +38.1% | +1.10 bp |
 | Northgate Acquiring | other | 2026-04 | 272,067.71 | 5,717.76 | 2.102% | 0.332% | +4.4% | -8.98 bp |
-| Northgate Acquiring | other | 2026-05 | 319,841.09 | 6,984.11 | 2.184% | 0.417% | +22.1% | +8.20 bp |
-| Northgate Acquiring | other | 2026-06 | 281,694.13 | 5,817.92 | 2.065% | 0.320% | -16.7% | -11.83 bp |
+| Northgate Acquiring | other | 2026-05 | 319,841.09 | 7,053.49 | 2.205% | 0.417% | +23.4% | +10.37 bp |
+| Northgate Acquiring | other | 2026-06 | 281,694.13 | 5,930.90 | 2.105% | 0.320% | -15.9% | -9.99 bp |
 
 ## Fees by component
 
@@ -71,5 +71,6 @@ Payment, refund and chargeback fees whose payment has a known card segment.
 | Northgate Acquiring | markup | 9,756.33 | 9,388.92 | 12,159.55 | 10,116.34 | 14,267.84 | 10,951.39 |
 | Northgate Acquiring | markup_credit | -118.23 | -257.56 | -284.61 | -250.42 | -291.32 | -305.77 |
 | Northgate Acquiring | monthly_minimum | 0.00 | 2,500.00 | 0.00 | 2,500.00 | 0.00 | 0.00 |
+| Northgate Acquiring | network_access_fee | 0.00 | 0.00 | 0.00 | 0.00 | 758.36 | 1,371.77 |
 | Northgate Acquiring | refund_fee | 44.00 | 90.10 | 107.80 | 123.50 | 140.90 | 141.20 |
 | Northgate Acquiring | scheme_fee | 1,266.75 | 1,219.42 | 1,609.80 | 1,763.34 | 1,980.26 | 1,965.66 |

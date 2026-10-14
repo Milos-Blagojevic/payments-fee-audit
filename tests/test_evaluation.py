@@ -176,9 +176,9 @@ def test_anomalies_are_reported_not_scored(tmp_path, capsys):
         difference_minor, method, month) VALUES ('A1', 'provider', 'northgate', 'new_component', NULL, ['NG-9'], 30,
         'anomaly', DATE '2026-03-01')""")
     con.execute("""CREATE TABLE truth.anomalies AS SELECT * FROM (VALUES
-        ('X01', 'northgate', 'network_access_fee', 'all', DATE '2026-03-10', 500, 2000),
-        ('X02', 'brightpay', 'service_fee', 'other', DATE '2026-04-01', 10, 40))
-        t(anomaly_id, provider, component, card_segment, start_date, lines, billed_minor)""")
+        ('X01', 'northgate', 'network_access_fee', 'NETWORK_ACCESS_FEE', 'all', DATE '2026-03-10', 4, 500, 2000),
+        ('X02', 'brightpay', 'service_fee', 'SERVICE_FEE', 'other', DATE '2026-04-01', 2, 10, 40))
+        t(anomaly_id, provider, component, line_type, card_segment, start_date, rate_bps, lines, billed_minor)""")
     con.execute("""CREATE TABLE main.fct_anomalies AS SELECT * FROM (VALUES
         ('new_component:northgate:network_access_fee:all:2026-03-12', 'new_component', 'northgate',
          'network_access_fee', 'all', DATE '2026-03-12', NULL, true, 'first billed'),

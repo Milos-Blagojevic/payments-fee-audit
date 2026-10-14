@@ -1,5 +1,6 @@
-"""Generator checks (spec 7.8): determinism, calibration, zero-rate billing, invoice totals, planting rules."""
+"""Generator checks (spec 7.8): determinism, calibration, zero-rate billing, invoice totals, planting rules, anomalies."""
 
+import collections
 import copy
 import hashlib
 from pathlib import Path
@@ -33,6 +34,8 @@ def small_config(zero_rates=False):
                 if key in ("share", "share_of_commercial"):
                     spec[key] = 0.0
         d["D14"] = {"northgate_events": 0, "brightpay_events": 0}
+        for spec in cfg["anomalies"].values():
+            spec["enabled"] = False
     return cfg
 
 
@@ -82,7 +85,7 @@ def test_calibration_targets_in_range(default_run):
 
 def test_zero_rates_bill_exactly_the_correct_charges(tmp_path):
     g = generate(small_config(zero_rates=True), tmp_path)
-    assert g["truth"] == []
+    assert g["truth"] == [] and g["anomalies"] == []
     ng, bp, ks = g["northgate"], g["brightpay"], g["kestrel"]
     assert (ng["billed"] == ng["correct"]).all()
     assert (ks["fee_billed"] == ks["fee_correct"]).all()
@@ -185,6 +188,54 @@ def test_ledger_files_hold_the_previous_day(default_db):
         WHERE CAST(regexp_extract(source_file, '(\d{4}-\d{2}-\d{2})\.csv$', 1) AS DATE) - 1 <> CAST(left(created_at, 10) AS DATE)
     """).fetchone()[0]
     assert bad == 0
+
+
+def test_planted_anomaly(default_run, default_db):
+    g = default_run[0]
+    con = default_db
+    spec = g["cfg"]["anomalies"]["X01"]
+    (row,) = con.execute("SELECT * FROM truth.anomalies").fetchall()
+    truth = dict(zip([d[0] for d in con.description], row))
+    assert (truth["anomaly_id"], truth["provider"], truth["line_type"], truth["component"]) == (
+        "X01", "northgate", spec["line_type"], spec["line_type"].lower())
+    lines, first_local_day, billed = con.execute(f"""
+        SELECT count(*), min(left(txn_time, 10)),
+               sum(CAST(round(CAST(replace(fee_amount, ',', '.') AS DECIMAL(18, 2)) * 100) AS BIGINT))
+        FROM (SELECT DISTINCT line_ref, txn_time, fee_amount FROM raw.northgate__settlement_lines
+              WHERE line_type = '{spec["line_type"]}')""").fetchone()
+    assert lines == truth["lines"] > 0 and billed == truth["billed_minor"]
+    assert first_local_day >= str(spec["start"])  # Berlin local time is never before the UTC start date
+    # Only on succeeded Northgate payments from the start date (those after the ledger watermark are not in the
+    # ledger yet), never on a D14 payment.
+    bad = con.execute(f"""
+        SELECT count(*) FROM raw.northgate__settlement_lines s
+        JOIN raw.ledger__payments p ON p.payment_id = s.txn_ref
+        WHERE s.line_type = '{spec["line_type"]}'
+          AND (p.status <> 'succeeded' OR p.provider <> 'northgate' OR p.created_at < '{spec["start"]}')""").fetchone()[0]
+    assert bad == 0
+    refs = {r[0] for r in con.execute(f"""
+        SELECT txn_ref FROM raw.northgate__settlement_lines WHERE line_type = '{spec["line_type"]}'""").fetchall()}
+    assert not refs & {r[3] for r in g["truth"] if r[0] == "D14"}
+
+
+def test_anomaly_leaves_every_plant_unchanged(tmp_path):
+    """D and L planting are identical with the anomaly off; noise only gains rows on the anomaly lines."""
+    cfg = small_config()
+    off_cfg = copy.deepcopy(cfg)
+    for spec in off_cfg["anomalies"].values():
+        spec["enabled"] = False
+    on, off = generate(cfg, tmp_path / "on"), generate(off_cfg, tmp_path / "off")
+    assert on["anomalies"] and on["anomalies"][0][7] > 0 and not off["anomalies"]
+
+    def plants(g):
+        return sorted((code, p, month, ev, correct, billed) for code, p, month, ev, _, correct, billed in g["truth"])
+
+    assert plants(on) == plants(off)
+    assert on["clients"]["leakage"] == off["clients"]["leakage"]
+    noise_on = collections.Counter((t, ev) for t, _, _, _, ev in on["noise"])
+    noise_off = collections.Counter((t, ev) for t, _, _, _, ev in off["noise"])
+    assert not noise_off - noise_on
+    assert {t for t, _ in noise_on - noise_off} == {"N04", "N06", "N07"}
 
 
 def test_committed_client_agreements_equal_fresh_render():

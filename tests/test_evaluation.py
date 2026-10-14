@@ -167,3 +167,41 @@ def test_rerun_replaces_schema(messy):
     con, _ = messy
     evaluate(con)
     assert con.execute("SELECT count(*) FROM evaluation.detection_by_type").fetchone()[0] == 15
+
+
+def test_anomalies_are_reported_not_scored(tmp_path, capsys):
+    con = build(tmp_path / "a.duckdb", CLEAN)
+    # An anomaly finding on an N01 line: neither a noise false positive nor an unexplained rule finding.
+    con.execute("""INSERT INTO main.fct_findings (finding_id, party, counterparty, finding_type, event_id, line_ids,
+        difference_minor, method, month) VALUES ('A1', 'provider', 'northgate', 'new_component', NULL, ['NG-9'], 30,
+        'anomaly', DATE '2026-03-01')""")
+    con.execute("""CREATE TABLE truth.anomalies AS SELECT * FROM (VALUES
+        ('X01', 'northgate', 'network_access_fee', 'NETWORK_ACCESS_FEE', 'all', DATE '2026-03-10', 4, 500, 2000),
+        ('X02', 'brightpay', 'service_fee', 'SERVICE_FEE', 'other', DATE '2026-04-01', 2, 10, 40))
+        t(anomaly_id, provider, component, line_type, card_segment, start_date, rate_bps, lines, billed_minor)""")
+    con.execute("""CREATE TABLE main.fct_anomalies AS SELECT * FROM (VALUES
+        ('new_component:northgate:network_access_fee:all:2026-03-12', 'new_component', 'northgate',
+         'network_access_fee', 'all', DATE '2026-03-12', NULL, true, 'first billed'),
+        ('rate_shift:northgate:network_access_fee:other:2026-03-09', 'rate_shift', 'northgate',
+         'network_access_fee', 'other', DATE '2026-03-09', 'contract', false, 'before the start'),
+        ('rate_shift:northgate:markup:other:2026-03-01', 'rate_shift', 'northgate', 'markup', 'other',
+         DATE '2026-03-01', 'contract', false, 'new tier'))
+        t(anomaly_id, anomaly_type, provider, component, card_segment, day, explained_by, is_finding, explanation)""")
+    con.close()
+    assert main(["--db", str(tmp_path / "a.duckdb")]) == 0
+    out = capsys.readouterr().out
+    assert "X01 northgate network_access_fee (all) from 2026-03-10: detected on 2026-03-12" in out
+    assert "X02 brightpay service_fee (other) from 2026-04-01: not detected" in out
+    assert "detected, not planted: 2 (explained_by: contract 2)" in out
+    with duckdb.connect(str(tmp_path / "a.duckdb")) as con:
+        result = evaluate(con)
+        assert result.passed and (result.noise_fp, result.unexplained) == (0, 0)
+        assert by_type(con)["D01"]["findings"] == 1
+        rows = con.execute("""SELECT category, anomaly_id, detected, days_to_detect, detected_anomaly_id
+            FROM evaluation.anomaly_report ORDER BY category DESC, anomaly_id, detected_anomaly_id""").fetchall()
+    assert rows == [
+        ("planted", "X01", True, 2, "new_component:northgate:network_access_fee:all:2026-03-12"),
+        ("planted", "X02", False, None, None),
+        ("not_planted", None, True, None, "rate_shift:northgate:markup:other:2026-03-01"),
+        ("not_planted", None, True, None, "rate_shift:northgate:network_access_fee:other:2026-03-09"),
+    ]

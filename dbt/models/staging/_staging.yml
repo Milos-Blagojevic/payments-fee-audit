@@ -209,11 +209,11 @@ models:
       - name: period_month
         description: First day of the month a `MONTHLY_MINIMUM` line is for.
       - name: line_type
-        description: Northgate line type (`INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE`, `REFUND_FEE`, `MARKUP_CREDIT`, `CHARGEBACK_FEE`, `MONTHLY_MINIMUM`).
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: [INTERCHANGE, SCHEME_FEE, MARKUP, FIXED_FEE, REFUND_FEE, MARKUP_CREDIT, CHARGEBACK_FEE, MONTHLY_MINIMUM]
+        description: >
+          Northgate line type (`INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE`, `REFUND_FEE`, `MARKUP_CREDIT`,
+          `CHARGEBACK_FEE`, `MONTHLY_MINIMUM`). Any other type is kept: int_provider_lines reads it as a fee
+          component of its own (A40) and fct_anomalies flags its first appearance.
+        data_tests: [not_null]
       - name: event_amount_minor
         description: Event amount in minor units.
       - name: event_currency

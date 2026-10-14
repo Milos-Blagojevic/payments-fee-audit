@@ -16,6 +16,7 @@ THRESHOLDS = {
 
 PROVIDER_FINDINGS = "main.fct_findings"
 CLIENT_FINDINGS = "main.fct_client_billing_findings"
+ANOMALIES = "main.fct_anomalies"
 
 # truth id -> (finding_type, unit kind); data-contract section 5.
 TYPE_MAP = {
@@ -50,6 +51,7 @@ class Result:
     rounding_off_n08: int
     unexplained: int
     invoice_level: list[dict]
+    anomalies: list[dict] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
 
     @property
@@ -82,11 +84,13 @@ def _prepare(con, client: bool) -> None:
     con.execute("CREATE OR REPLACE TEMP TABLE type_map (truth_id VARCHAR, finding_type VARCHAR, kind VARCHAR)")
     con.executemany("INSERT INTO type_map VALUES (?, ?, ?)", [(k, t, u) for k, (t, u) in TYPE_MAP.items()])
 
+    # Only rule findings are scored: anomaly findings (method = 'anomaly') are reported in anomaly_report.
+    rule_only = "WHERE method = 'rule'" if "method" in _columns(con, PROVIDER_FINDINGS) else ""
     provider = f"""
         SELECT finding_id, 'provider' AS party, counterparty, finding_type, event_id,
                coalesce(line_ids, []::VARCHAR[]) AS line_ids, difference_minor,
                strftime(month::DATE, '%Y-%m') AS month_key, []::VARCHAR[] AS components
-        FROM {PROVIDER_FINDINGS}"""
+        FROM {PROVIDER_FINDINGS} {rule_only}"""
     if client:
         if "component" in _columns(con, CLIENT_FINDINGS):
             comp = f"SELECT finding_id, [component] AS components FROM {CLIENT_FINDINGS} WHERE component IS NOT NULL"
@@ -211,6 +215,52 @@ def _build(con, client: bool) -> None:
         ORDER BY f.finding_id""")
 
 
+def _anomaly_report(con) -> None:
+    """Planted anomalies against fct_anomalies, reported only (spec 12: no target).
+
+    One row per planted anomaly (detected or not) and one per detected anomaly that matches no plant. A detection
+    matches a plant when provider and component are equal, the card segments are equal or either is `all`, and the
+    day is on or after the plant's start date.
+    """
+    if not (_exists(con, ANOMALIES) and _exists(con, "truth.anomalies")):
+        con.execute("""
+            CREATE OR REPLACE TABLE evaluation.anomaly_report (category VARCHAR, anomaly_id VARCHAR,
+                provider VARCHAR, component VARCHAR, card_segment VARCHAR, line_type VARCHAR, rate_bps INTEGER,
+                start_date DATE, planted_lines BIGINT,
+                planted_minor BIGINT, detected BOOLEAN, first_detected_day DATE, days_to_detect INTEGER,
+                detected_anomaly_id VARCHAR, anomaly_type VARCHAR, detections BIGINT, explained_by VARCHAR,
+                is_finding BOOLEAN, explanation VARCHAR)""")
+        return
+    con.execute(f"""
+        CREATE OR REPLACE TABLE evaluation.anomaly_report AS
+        WITH pairs AS (
+            SELECT t.anomaly_id AS planted_id, a.anomaly_id AS detected_id, a.day
+            FROM truth.anomalies t JOIN {ANOMALIES} a
+              ON a.provider = t.provider AND a.component = t.component AND a.day >= t.start_date
+             AND (a.card_segment = t.card_segment OR 'all' IN (a.card_segment, t.card_segment))
+        ), first_detection AS (
+            SELECT planted_id, arg_min(detected_id, (day, detected_id)) AS detected_id, min(day) AS first_day,
+                   count(*) AS detections
+            FROM pairs GROUP BY planted_id
+        )
+        SELECT 'planted' AS category, t.anomaly_id, t.provider, t.component, t.card_segment, t.line_type, t.rate_bps,
+               t.start_date,
+               t.lines AS planted_lines, t.billed_minor AS planted_minor, fd.planted_id IS NOT NULL AS detected,
+               fd.first_day AS first_detected_day, (fd.first_day - t.start_date)::INTEGER AS days_to_detect,
+               a.anomaly_id AS detected_anomaly_id, a.anomaly_type, coalesce(fd.detections, 0) AS detections,
+               a.explained_by, a.is_finding, a.explanation
+        FROM truth.anomalies t
+        LEFT JOIN first_detection fd ON fd.planted_id = t.anomaly_id
+        LEFT JOIN {ANOMALIES} a ON a.anomaly_id = fd.detected_id
+        UNION ALL
+        SELECT 'not_planted', NULL, a.provider, a.component, a.card_segment, NULL, NULL, NULL, NULL, NULL, true, a.day,
+               NULL,
+               a.anomaly_id, a.anomaly_type, 1, a.explained_by, a.is_finding, a.explanation
+        FROM {ANOMALIES} a
+        WHERE a.anomaly_id NOT IN (SELECT detected_id FROM pairs)
+        ORDER BY category DESC, anomaly_id, detected_anomaly_id""")
+
+
 def evaluate(con: duckdb.DuckDBPyConnection) -> Result:
     """Build schema `evaluation` on `con` and return the metrics and the verdict."""
     if not _exists(con, PROVIDER_FINDINGS):
@@ -218,6 +268,7 @@ def evaluate(con: duckdb.DuckDBPyConnection) -> Result:
     client = _exists(con, CLIENT_FINDINGS)
     _prepare(con, client)
     _build(con, client)
+    _anomaly_report(con)  # reported only: never a failure
 
     detection = _rows(con, "SELECT * FROM evaluation.detection_by_type ORDER BY truth_id")
     planted = sum(abs(r["planted_minor"]) for r in detection)
@@ -236,6 +287,7 @@ def evaluate(con: duckdb.DuckDBPyConnection) -> Result:
         rounding_off_n08=rounding_off,
         unexplained=unexplained,
         invoice_level=_rows(con, "SELECT * FROM evaluation.invoice_level"),
+        anomalies=_rows(con, "SELECT * FROM evaluation.anomaly_report"),
     )
     for r in detection:
         if r["precision"] < THRESHOLDS["min_precision"]:

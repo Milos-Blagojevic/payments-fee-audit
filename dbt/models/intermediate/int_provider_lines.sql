@@ -14,6 +14,10 @@ northgate as (
             when line_type in ('REFUND_FEE', 'MARKUP_CREDIT') then 'refund'
             when line_type = 'CHARGEBACK_FEE' then 'chargeback'
             when line_type = 'MONTHLY_MINIMUM' then 'provider_month'
+            -- A line type the data contract does not list (A40): month-level when it names a period, otherwise a
+            -- charge on the payment the row describes.
+            when period_month is not null then 'provider_month'
+            else 'payment'
         end as event_type,
         case line_type
             when 'INTERCHANGE' then 'interchange'
@@ -24,6 +28,7 @@ northgate as (
             when 'MARKUP_CREDIT' then 'markup_credit'
             when 'CHARGEBACK_FEE' then 'chargeback_fee'
             when 'MONTHLY_MINIMUM' then 'monthly_minimum'
+            else lower(line_type)
         end as component,
         fee_minor as amount_minor,
         fee_currency as currency,

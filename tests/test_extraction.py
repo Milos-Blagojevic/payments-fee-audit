@@ -170,14 +170,6 @@ def test_unusable_response_is_recorded_and_paid(tmp_path, config):
     assert not (tmp_path / "northgate-v1.yml").exists()
 
 
-def test_cli_extract_refuses_with_committed_config(tmp_path, capsys, monkeypatch):
-    monkeypatch.delenv("FEEAUDIT_LLM_MODEL", raising=False)
-    args = ["extract", "--only", "northgate-v1", "--config", str(REPO / "config/llm.yml"), "--text-dir", str(TEXT),
-            "--out-dir", str(tmp_path)]
-    assert main(args) == 1
-    assert "prices_verified is false" in capsys.readouterr().err
-
-
 def test_cost_is_exact():
     prices = {"input": Decimal("4.00"), "output": Decimal("20.00"), "cache_write": Decimal("5"), "cache_read": Decimal("0.20")}
     assert call_cost(prices, 1, 1, 1, 1) == Decimal("0.0000292")

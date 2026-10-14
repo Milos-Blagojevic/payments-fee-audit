@@ -1,0 +1,8 @@
+fee_audit:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      # Relative to the repository root: the Makefile runs dbt from there.
+      path: warehouse/fees.duckdb
+      threads: 4

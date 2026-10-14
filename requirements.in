@@ -1,0 +1,8 @@
+# Runtime dependencies. Regenerate requirements.txt with:
+#   uv pip compile requirements.in --python-version 3.12 --no-header --no-annotate -o requirements.txt
+dbt-core
+dbt-duckdb
+duckdb
+jsonschema
+numpy
+pyyaml

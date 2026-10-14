@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.env
+
+# Generated data and outputs
+data/
+warehouse/*.duckdb
+warehouse/*.duckdb.wal
+reports/*
+!reports/.gitkeep
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+logs/

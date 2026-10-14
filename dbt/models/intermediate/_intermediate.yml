@@ -227,3 +227,282 @@ models:
         description: "{{ doc('source_file') }} (the line's, or the ledger event's for `ledger_only`)."
       - name: source_row
         description: "{{ doc('source_row') }}"
+
+  - name: int_provider_contract_versions
+    description: Provider contract versions with the previous version number and the other rounding mode.
+    columns:
+      - name: contract_version_id
+        description: "`<contract_id> v<version>`."
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: previous_contract_version
+        description: The version before this one (null for version 1); its rates are the stale-rate reading (D01).
+      - name: contract_name
+        description: Name of the provider as written in the contract.
+      - name: effective_from
+        description: First day the version applies, in the contract's time zone.
+      - name: effective_to
+        description: Last day the version applies (inclusive); null for the latest version.
+      - name: currency
+        description: Currency the provider bills in.
+      - name: timezone
+        description: Time zone of the contract's dates and months.
+      - name: rounding_mode
+        description: "`half_up` or `half_even`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [half_up, half_even]
+      - name: other_rounding_mode
+        description: The other rounding mode, the reading behind the `rounding` category (A04).
+      - name: rounding_level
+        description: "`transaction` for every provider contract."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [transaction]
+      - name: dispute_window_days
+        description: Days after the invoice date during which a billing error can be disputed.
+      - name: source_file
+        description: The contract YAML file.
+
+  - name: int_contract_tiers
+    description: One row per tier of every tiered term; `up_to_minor` is an exclusive upper bound and a tier starts at the previous one's bound.
+    columns:
+      - name: contract_tier_id
+        description: "`<contract_term_id> tier <n>`."
+        data_tests: [unique, not_null]
+      - name: contract_term_id
+        description: "`<contract_id> v<version> §<clause>`."
+      - name: contract_version_id
+        description: "`<contract_id> v<version>`."
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: clause
+        description: "{{ doc('clause') }}"
+      - name: kind
+        description: Term kind.
+      - name: tiering
+        description: "`retroactive` or `marginal`."
+      - name: tier_no
+        description: 1-based tier number in the order of the contract.
+      - name: from_minor
+        description: Lower bound of the tier (inclusive), minor units.
+      - name: up_to_minor
+        description: Upper bound of the tier (exclusive), minor units; null for the open top tier.
+      - name: bps
+        description: Rate of the tier in basis points (provider terms).
+      - name: discount_pct
+        description: Discount of the tier in percent (client terms).
+
+  - name: int_provider_months
+    description: >
+      Every provider × month (contract time zone) with ledger events: processed volumes, the contract version in
+      force on the month's first day, and whether the ledger covers the whole month (A19).
+    columns:
+      - name: provider_month_id
+        description: "`<provider>:<YYYY-MM>`."
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+      - name: provider_month
+        description: First day of the month in the contract's time zone.
+      - name: provider_timezone
+        description: Time zone of the provider's contract.
+      - name: month_end_utc
+        description: End of the month (exclusive) in UTC.
+      - name: ledger_covers_month
+        description: Whether the ledger watermark is at or after the month end; month-level checks wait until it is.
+        data_tests: [not_null]
+      - name: succeeded_payments
+        description: Number of succeeded card payments.
+      - name: volume_minor
+        description: Processed volume (succeeded payments), minor units; the basis of retroactive markup tiers.
+      - name: eea_consumer_volume_minor
+        description: Processed volume on EEA consumer cards, minor units; the basis of the Brightpay volume discount.
+      - name: other_volume_minor
+        description: Processed volume on other cards, minor units.
+      - name: contract_version_id
+        description: Contract version in force on the month's first day (for minimums and volume adjustments).
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: rounding_mode
+        description: Rounding mode of that version.
+      - name: other_rounding_mode
+        description: The other rounding mode.
+      - name: currency
+        description: Currency of the contract.
+
+  - name: int_expected_charges
+    description: >
+      What each ledger event should cost under the provider contract version in force at the event time (data
+      contract section 4.1), one row per event × fee component, plus provider × month rows for monthly minimums and
+      volume adjustments (every month with ledger events, zeros included). Same grain and the same first ten
+      columns as `reference.expected_charges`; `make verify` requires both to be equal.
+    columns:
+      - name: expected_charge_id
+        description: "`<event_type>:<event_id or provider:YYYY-MM>:<component>`."
+        data_tests: [unique, not_null]
+      - name: event_type
+        description: "{{ doc('event_type') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [payment, refund, chargeback, payout, provider_month]
+      - name: event_id
+        description: "{{ doc('event_id') }} Null on provider × month rows."
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: month
+        description: "{{ doc('event_month') }}"
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('component') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+        data_tests: [not_null]
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+        data_tests: [not_null]
+      - name: clause
+        description: "{{ doc('clause') }}"
+        data_tests: [not_null]
+      - name: expected_minor
+        description: Expected charge in minor units (negative for credits; for `fx_conversion` the largest EUR debit the cap allows).
+        data_tests: [not_null]
+      - name: currency
+        description: Currency of the charge (EUR).
+      - name: other_rounding_minor
+        description: The same charge under the other rounding mode; a one-unit difference that equals it is `rounding`.
+      - name: basis_minor
+        description: >
+          The amount the rate applies to: event amount; EUR equivalent at mid for payout fees; payout amount for
+          FX; month markup for minimums; segment volume for volume adjustments.
+      - name: rate_bps
+        description: Rate applied, in basis points (cap for FX; rate difference for volume adjustments).
+      - name: tier_no
+        description: Markup tier the month's volume falls in.
+      - name: formula
+        description: The calculation with the actual numbers and the clauses used.
+        data_tests: [not_null]
+      - name: event_timestamp_utc
+        description: Event time, UTC (null on provider × month rows).
+      - name: card_segment
+        description: "{{ doc('card_segment') }}"
+      - name: evidence
+        description: Source file and row of the ledger event, and the contract file and clause.
+        data_tests: [not_null]
+
+  - name: int_charge_comparison
+    description: >
+      Expected against billed: one row per expected charge with the matched lines it was billed on, plus one row
+      per provider line component without a ledger counterpart (duplicates, unknown events, lines after the
+      watermark). Each provider line component lands in exactly one row. Every row carries its rule
+      classification; rows that cannot be judged yet are `pending`.
+    columns:
+      - name: comparison_id
+        description: The expected charge id, `line:<line_id>:<component>` for unmatched lines, or `billed:…` for billed charges without an expectation.
+        data_tests: [unique, not_null]
+      - name: comparison_status
+        description: "`compared` or `pending`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [compared, pending]
+      - name: pending_reason
+        description: "`ledger_lag` (line after the watermark), `not_billed_yet` (month after the last statement) or `month_not_covered` (a month-level row for a month the ledger does not cover yet)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ledger_lag, not_billed_yet, month_not_covered]
+      - name: event_type
+        description: "{{ doc('event_type') }}"
+      - name: event_id
+        description: "{{ doc('event_id') }}"
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: month
+        description: "{{ doc('event_month') }}"
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('component') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+      - name: clause
+        description: "{{ doc('clause') }}"
+      - name: expected_minor
+        description: Expected charge, minor units (0 for unmatched lines).
+      - name: billed_minor
+        description: Sum of the matched lines, minor units (0 when nothing was billed).
+      - name: difference_minor
+        description: billed − expected.
+      - name: currency
+        description: "{{ doc('currency') }}"
+      - name: other_rounding_minor
+        description: Expected charge under the other rounding mode.
+      - name: finding_type
+        description: Rule classification of the difference (data contract section 5); null when there is nothing to report.
+      - name: finding_expected_minor
+        description: The amount a finding is measured against (the rescaled debit for `fx_rate_wrong_hour`, the expected charge otherwise).
+      - name: basis_minor
+        description: Basis of the expected charge.
+      - name: rate_bps
+        description: Rate of the expected charge, basis points.
+      - name: tier_no
+        description: Markup tier of the month.
+      - name: first_tier_bps
+        description: First markup tier's rate (the reading behind `retroactive_tier_not_applied`).
+      - name: previous_version_bps
+        description: The previous contract version's rate for the same tier (the reading behind `stale_rate`).
+      - name: card_segment
+        description: "{{ doc('card_segment') }}"
+      - name: formula
+        description: Formula of the expected charge.
+      - name: finding_formula
+        description: The formula a finding cites (adds the execution-hour rescaling for `fx_rate_wrong_hour`).
+      - name: line_ids
+        description: Provider line ids billed for the charge (empty when nothing was billed).
+      - name: line_count
+        description: Number of lines in `line_ids`.
+      - name: evidence
+        description: Source files and rows of the lines and the ledger event, and the contract clause.
+      - name: statement_month
+        description: "{{ doc('statement_month') }} For charges without a line, the statement of the event's other lines, else the event month."
+      - name: line_status
+        description: Reconciliation status of an unmatched line.
+      - name: line_reason
+        description: Reconciliation reason of an unmatched line.
+      - name: duplicate_of_line_id
+        description: For a duplicate line, the line that already billed the charge.
+      - name: payment_status
+        description: Ledger status of the payment.
+      - name: rail
+        description: Payout rail.
+      - name: fx_rate_applied
+        description: Rate Kestrel applied.
+      - name: rate_timestamp_utc
+        description: Hour of the rate Kestrel used.
+      - name: event_timestamp_utc
+        description: Event time, UTC.
+      - name: rounding_mode
+        description: Rounding mode of the contract version.
+      - name: dispute_window_days
+        description: Dispute window of the contract version.

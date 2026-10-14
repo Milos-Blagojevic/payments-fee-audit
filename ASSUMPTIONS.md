@@ -141,3 +141,31 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Why:** deterministic, one-to-one, and the provider's own numbering puts the original before a re-billed copy.
 - **Alternatives:** an optimal assignment (Hungarian matching) over the fallback candidates; flagging every line of a duplicated event.
 - **Set in:** `dbt/models/intermediate/int_reconciliation.sql`.
+
+## A21 Markup lines that read as two errors
+
+- **Default:** a markup line whose billed amount equals both the previous contract version's rate for the same tier (`stale_rate`) and the first tier's rate (`retroactive_tier_not_applied`) takes the reading that the provider × month's unambiguous markup lines show more often; on a tie it is `stale_rate`.
+- **Why:** on small payments the two rates round to the same cent; the month shows which error the provider made (a stale rate after an amendment, or a tier applied only from the threshold).
+- **Alternatives:** always prefer one type; report such lines as `fee_mismatch`.
+- **Set in:** `dbt/models/intermediate/int_charge_comparison.sql`.
+
+## A22 Reference date for dispute deadlines
+
+- **Default:** `days_left` counts from the dbt var `as_of_date`, default `2026-07-15` (two weeks after the synthetic period ends), not from the run date.
+- **Why:** the build must reproduce the same numbers on any day; the date is just late enough that the last invoices are open and the early ones have expired.
+- **Alternatives:** the run date (`current_date`), which changes every number in M07 daily.
+- **Set in:** `vars.as_of_date` in `dbt/dbt_project.yml`; override with `dbt build --vars '{as_of_date: 2026-08-01}'`.
+
+## A23 Provider comparison
+
+- **Default:** every succeeded card payment is priced under each card contract version in force at its time: payment-level fees only (interchange and scheme fee, markup and fixed fee; or the blended rate), the markup tier taken from that provider's actual month volume. Refund and chargeback fees, minimums and volume discounts are left out; months are UTC.
+- **Why:** answers "what would this volume have cost there" with the terms that scale with volume, without simulating how moving volume would change the other provider's tiers.
+- **Alternatives:** re-tiering the alternative with the moved volume; including refund, chargeback and monthly terms.
+- **Set in:** `dbt/models/marts/fct_provider_comparison.sql`.
+
+## A24 Invoice a finding is disputed on
+
+- **Default:** a finding belongs to the invoice of the statement its line arrived in (a late line, N04, goes with the next month's invoice); a charge with no line of its own (a missing markup credit) to the statement of the event's other lines; a provider × month finding to that month's invoice. The dispute deadline is that invoice's date plus the contract's `dispute_window_days`.
+- **Why:** the dispute window starts with the invoice that billed (or should have billed) the charge.
+- **Alternatives:** the invoice of the event month regardless of where the line arrived.
+- **Set in:** `dbt/models/intermediate/int_charge_comparison.sql`, `dbt/models/marts/fct_findings.sql`.

@@ -487,6 +487,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "components": {
           "type": "array",
           "prefixItems": [
@@ -525,6 +529,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "markup"
@@ -580,6 +588,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "component": {
           "const": "fixed_fee"
         },
@@ -607,6 +619,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "transaction_fee"
@@ -641,6 +657,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "volume_adjustment"
@@ -704,6 +724,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "fee_minor": {
           "$ref": "#/$defs/nonneg_int"
         },
@@ -730,6 +754,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "chargeback_fee"
@@ -758,6 +786,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "monthly_minimum"
@@ -788,6 +820,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "payout_fee"
@@ -873,6 +909,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "component": {
           "const": "fx_conversion"
         },
@@ -918,6 +958,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "component": {
           "const": "payment_fees"
         },
@@ -944,6 +988,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "rails": {
           "type": "object",
@@ -990,6 +1038,10 @@
         "title": {
           "$ref": "#/$defs/text"
         },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
+        },
         "component": {
           "const": "fx_markup"
         },
@@ -1016,6 +1068,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "platform_fee"
@@ -1045,6 +1101,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "volume_discount"
@@ -1102,6 +1162,10 @@
         },
         "title": {
           "$ref": "#/$defs/text"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "false on unreviewed LLM extractions; the loader refuses them"
         },
         "component": {
           "const": "promo_discount"

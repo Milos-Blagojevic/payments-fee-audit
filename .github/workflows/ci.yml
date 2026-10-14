@@ -18,3 +18,4 @@ jobs:
       - run: make install
       - run: make all
       - run: make test
+      - run: make extraction-score

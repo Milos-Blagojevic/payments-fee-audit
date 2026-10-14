@@ -1,0 +1,197 @@
+{
+  "name": "northgate-v2",
+  "model": "claude-opus-5-5",
+  "timestamp": "2026-10-14T16:58:05Z",
+  "prompt_sha256": "1765664eea88b1629a76d5e549e133598d5bdd4575d4915fca77f824a7391017",
+  "sources": {
+    "contracts/text/northgate-v1.md": "f7acb6d83f37a6f64795e54208cbe58f84efd20d510f0b555df162bf5a752e24",
+    "contracts/text/northgate-v2.md": "f12e0cb6e186697121c8631291a938d5386838299ee7c36d4fe51285706fe70a"
+  },
+  "usage": {
+    "input_tokens": 8252,
+    "output_tokens": 805,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "prices_usd_per_million_tokens": {
+    "input": "4",
+    "output": "20",
+    "cache_write": "5",
+    "cache_read": "0.2"
+  },
+  "cost_usd": "0.049108",
+  "estimate": {
+    "input_tokens": 8252,
+    "max_output_tokens": 16000,
+    "cost_usd": "0.353008"
+  },
+  "request": {
+    "model": "claude-opus-5-5",
+    "max_tokens": 16000,
+    "system": "You extract the fee terms of payment provider contracts into a structured contract file used by an automated fee audit. Return one JSON object that matches the given schema and describes one complete version of the contract.\n\nRules:\n- Return the complete version: every fee term in force under it. For an amendment letter you also receive the master agreement: apply the amendment to the master agreement and return the whole amended contract, including the terms the letter leaves unchanged.\n- version: the master agreement is version 1; Amendment No. N creates version N + 1. effective_from: the date from which this version applies, as an ISO 8601 date.\n- contract_id: the agreement reference. party: always \"provider\". name: the provider's trading name as written in the agreement. counterparty: the first word of that name in lower case (for example \"Acme Payments\" gives \"acme\").\n- Money: integer minor units (euro cents): EUR 0.04 is 4, EUR 2,500,000.00 is 250000000. Rates: integer basis points: 0.45% is 45.\n- Volume bands: one tier per band in increasing order; up_to_minor is the band's exclusive upper limit (\"less than\"), null for the open-ended last band.\n- timezone: the IANA time zone in which times and calendar months are determined. rounding.mode: half_up or half_even; rounding.level: transaction when each fee of each payment or payout is rounded on its own, invoice_line when each invoice line is rounded once. dispute_window_days: the number of days within which an invoice can be disputed.\n- Terms: one per clause that sets a price, fee, credit, discount, minimum or cap. clause: the clause number as a string, for example \"4.2\". title: a short description of the clause. Definitions, currency, rounding, invoicing and dispute clauses are not terms; they give the header fields.\n- Use only what the text states.\n\nTerm kinds (parameters_json: a JSON object with the parameters of the term's kind, exactly as the kind's parameter schema at the end defines them):\n- pass_through: interchange and scheme fees charged at cost against a reference table (reference: the table's designation).\n- markup_bps_tiered: a markup in basis points by band of monthly processed volume, where the band reached applies to the whole month's volume (tiering: retroactive).\n- per_transaction_fixed: a fixed amount per successful payment.\n- blended_rate: an all-in percentage plus a fixed amount per successful payment, by card segment (eea_consumer, other); failed_attempts: no_fee when declined or failed attempts are free.\n- volume_discount: a lower rate on the part of a card segment's monthly volume above a threshold (tiering: marginal), settled as a monthly adjustment; two tiers, the rate below and the rate above the threshold.\n- refund: a fee per refund, and whether the markup of the original payment is credited back.\n- chargeback_fee: a fee per chargeback.\n- monthly_minimum: a minimum amount of markup per month (applies_to: markup).\n- payout_fee: the fee per payout on one rail (sepa, faster_payments, swift, elixir): either fixed_minor, or bps of the EUR equivalent with min_minor and cap_minor.\n- fx_spread_cap: the maximum FX spread in basis points per payout currency against the hourly mid rate at the execution hour (benchmark: fx_mid_hourly, rate_time: execution_hour).\n\nParameter schema per kind:\n{\n \"blended_rate\": {\n  \"properties\": {\n   \"failed_attempts\": {\n    \"const\": \"no_fee\"\n   },\n   \"segments\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n     \"eea_consumer\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     },\n     \"other\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     }\n    },\n    \"required\": [\n     \"eea_consumer\",\n     \"other\"\n    ],\n    \"type\": \"object\"\n   }\n  },\n  \"required\": [\n   \"segments\",\n   \"failed_attempts\"\n  ],\n  \"type\": \"object\"\n },\n \"chargeback_fee\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"fx_spread_cap\": {\n  \"properties\": {\n   \"benchmark\": {\n    \"const\": \"fx_mid_hourly\"\n   },\n   \"caps_bps\": {\n    \"additionalProperties\": {\n     \"minimum\": 0,\n     \"type\": \"integer\"\n    },\n    \"minProperties\": 1,\n    \"propertyNames\": {\n     \"enum\": [\n      \"GBP\",\n      \"USD\",\n      \"CHF\",\n      \"PLN\"\n     ]\n    },\n    \"type\": \"object\"\n   },\n   \"rate_time\": {\n    \"const\": \"execution_hour\"\n   }\n  },\n  \"required\": [\n   \"benchmark\",\n   \"rate_time\",\n   \"caps_bps\"\n  ],\n  \"type\": \"object\"\n },\n \"markup_bps_tiered\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_processed_volume\"\n   },\n   \"tiering\": {\n    \"const\": \"retroactive\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"minItems\": 1,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"basis\",\n   \"tiering\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n },\n \"monthly_minimum\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"applies_to\": {\n    \"const\": \"markup\"\n   }\n  },\n  \"required\": [\n   \"applies_to\",\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"pass_through\": {\n  \"properties\": {\n   \"components\": {\n    \"items\": false,\n    \"minItems\": 2,\n    \"prefixItems\": [\n     {\n      \"const\": \"interchange\"\n     },\n     {\n      \"const\": \"scheme_fee\"\n     }\n    ],\n    \"type\": \"array\"\n   },\n   \"reference\": {\n    \"minLength\": 1,\n    \"type\": \"string\"\n   }\n  },\n  \"required\": [\n   \"components\",\n   \"reference\"\n  ],\n  \"type\": \"object\"\n },\n \"payout_fee\": {\n  \"oneOf\": [\n   {\n    \"not\": {\n     \"anyOf\": [\n      {\n       \"required\": [\n        \"bps\"\n       ]\n      },\n      {\n       \"required\": [\n        \"min_minor\"\n       ]\n      },\n      {\n       \"required\": [\n        \"cap_minor\"\n       ]\n      }\n     ]\n    },\n    \"required\": [\n     \"fixed_minor\"\n    ]\n   },\n   {\n    \"not\": {\n     \"required\": [\n      \"fixed_minor\"\n     ]\n    },\n    \"required\": [\n     \"bps\",\n     \"min_minor\",\n     \"cap_minor\"\n    ]\n   }\n  ],\n  \"properties\": {\n   \"bps\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"cap_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"fixed_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"min_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"rail\": {\n    \"enum\": [\n     \"sepa\",\n     \"faster_payments\",\n     \"swift\",\n     \"elixir\"\n    ]\n   }\n  },\n  \"required\": [\n   \"rail\"\n  ],\n  \"type\": \"object\"\n },\n \"per_transaction_fixed\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"refund\": {\n  \"properties\": {\n   \"credit_original_markup\": {\n    \"type\": \"boolean\"\n   },\n   \"fee_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"fee_minor\",\n   \"credit_original_markup\"\n  ],\n  \"type\": \"object\"\n },\n \"volume_discount\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_segment_volume\"\n   },\n   \"segment\": {\n    \"const\": \"eea_consumer\"\n   },\n   \"settlement\": {\n    \"const\": \"monthly_adjustment\"\n   },\n   \"tiering\": {\n    \"const\": \"marginal\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"maxItems\": 2,\n    \"minItems\": 2,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"segment\",\n   \"basis\",\n   \"tiering\",\n   \"settlement\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n }\n}\n",
+    "messages": [
+      {
+        "role": "user",
+        "content": "<document role=\"master_agreement\">\n# Master Acquiring Services Agreement\n\n*Illustrative contract text for a fictional company. Not a real agreement and not legal advice.*\n\n**Agreement reference:** NG-2025-01\n\n**Dated:** 1 July 2025\n\n**Between:**\n\n1. **Northgate Acquiring** (the \"Acquirer\"); and\n2. **Fernway**, a marketplace payments company (the \"Merchant\").\n\n## Background\n\n(A) The Acquirer provides card acquiring services for Visa and Mastercard payments.\n\n(B) The Merchant operates an online marketplace and wishes to appoint the Acquirer to acquire card payments made by buyers on that marketplace, on interchange-plus-plus pricing.\n\nThe parties agree as follows.\n\n## 1. Definitions and interpretation\n\n**1.1 Definitions.** In this Agreement the following terms have the following meanings:\n\n- **\"Agreement\"** means this agreement, including its Schedules, as amended from time to time.\n- **\"Business Day\"** means a day other than a Saturday, a Sunday or a public holiday on which banks are open for general business.\n- **\"Card Scheme\"** means Visa or Mastercard.\n- **\"Chargeback\"** means the reversal of a Successful Transaction initiated by the card issuer under the Card Scheme rules.\n- **\"Interchange Fee\"** means the fee payable to the card issuer under the Card Scheme rules for a Transaction.\n- **\"Invoice\"** means the monthly invoice issued by the Acquirer under clause 7.1.\n- **\"Markup\"** means the Acquirer's margin payable under clause 4.2.\n- **\"Monthly Processed Volume\"** means the aggregate amount of all Successful Transactions processed by the Acquirer for the Merchant in a calendar month, before deduction of any fee, Refund or Chargeback.\n- **\"Refund\"** means the reversal, at the Merchant's request, of the whole amount of a Successful Transaction.\n- **\"Scheme Fee\"** means the fee charged by a Card Scheme for a Transaction.\n- **\"Successful Transaction\"** means a Transaction that is authorised by the card issuer and captured.\n- **\"Transaction\"** means a payment by card to the Merchant submitted to the Acquirer for authorisation.\n\n**1.2 Interpretation.** (a) Headings do not affect the interpretation of this Agreement. (b) References to clauses and Schedules are to clauses of and Schedules to this Agreement. (c) Unless stated otherwise, every reference to a time, a date or a calendar month is to the local time in Frankfurt am Main, Germany (IANA time zone Europe/Berlin, including summer time where it applies), so that a calendar month begins at 00:00 local time on its first day.\n\n## 2. Commencement and duration\n\n**2.1 Commencement.** This Agreement takes effect on 1 July 2025 (the \"Effective Date\") and applies to all Transactions made on or after the Effective Date.\n\n**2.2 Duration.** This Agreement continues for an initial term of twenty-four months from the Effective Date and afterwards until terminated by either party on three months' written notice to the other.\n\n## 3. Interchange and scheme fees\n\n**3.1 Pass-through fees.** For each Successful Transaction the Merchant shall pay the Interchange Fee and the Scheme Fee actually incurred by the Acquirer, passed through at cost without any margin. The amounts charged shall not exceed those in the interchange and scheme fee reference table designated \"interchange_table_v1\" and described in Schedule 1 (the \"Reference Table\"). The Markup under clause 4.2 is payable in addition.\n\n## 4. Acquirer fees\n\n**4.1 Currency.** All fees, charges and credits under this Agreement are calculated, invoiced and payable in euro (EUR).\n\n**4.2 Markup.** (a) For each Successful Transaction the Merchant shall pay a Markup equal to the percentage of the Transaction amount shown below for the band into which the Monthly Processed Volume of the calendar month of the Transaction falls:\n\n| Band | Monthly Processed Volume | Markup |\n|---|---|---|\n| 1 | less than EUR 2,500,000.00 | 0.45% (forty-five basis points) |\n| 2 | EUR 2,500,000.00 or more but less than EUR 8,000,000.00 | 0.35% (thirty-five basis points) |\n| 3 | EUR 8,000,000.00 or more | 0.28% (twenty-eight basis points) |\n\n(b) The band is determined once the Monthly Processed Volume of the month is known, and its rate applies to every Successful Transaction of that month, including Transactions processed before the volume reached the lower limit of that band.\n\n(c) The Markup is subject to the monthly minimum in clause 7.4 and rounded in accordance with clause 4.4.\n\n**4.3 Fixed fee.** In addition to the Markup, the Merchant shall pay a fixed fee of EUR 0.04 (four euro cents) for each Successful Transaction. No fixed fee is payable on a Transaction that is declined or fails.\n\n**4.4 Calculation and rounding.** Each fee and each credit is calculated separately for each Transaction and for each fee component, and is rounded to the nearest whole euro cent before fees are aggregated on the Invoice. An amount of exactly half a cent is rounded up, away from zero.\n\n## 5. Refunds\n\n**5.1 Refund fee and markup credit.** (a) For each Refund the Merchant shall pay a refund fee of EUR 0.10 (ten euro cents).\n\n(b) On each Refund the Acquirer shall credit the Merchant with the Markup under clause 4.2 on the refunded Successful Transaction. The Interchange Fee, the Scheme Fee, the fixed fee under clause 4.3 and any other fee on that Transaction are not credited.\n\n## 6. Chargebacks\n\n**6.1 Chargeback fee.** For each Chargeback the Merchant shall pay a chargeback handling fee of EUR 15.00 (fifteen euro), whatever the outcome of any representment.\n\n## 7. Invoicing, disputes and minimum fee\n\n**7.1 Monthly invoice.** Within ten Business Days after the end of each calendar month the Acquirer shall issue an Invoice for the fees of that month, together with a statement listing each fee for each Transaction.\n\n**7.2 Payment.** Each Invoice is payable within fourteen days of its date. The Acquirer may instead deduct the amount of an Invoice from funds it holds for the Merchant, provided the Invoice has been issued first.\n\n**7.3 Disputes.** The Merchant may dispute an Invoice, or any fee or charge shown on it or on the accompanying statement, by written notice given within sixty (60) days after the date of the Invoice. Any amount found to have been overcharged shall be credited on the next Invoice. Fees not disputed within that period are deemed accepted, except in the case of manifest error or fraud.\n\n**7.4 Monthly minimum.** If the total Markup under clause 4.2 on the Successful Transactions of a calendar month is less than EUR 2,500.00 (two thousand five hundred euro), the Merchant shall pay the difference as a minimum fee for that month, shown as a separate line on the Invoice. Markup credits on Refunds under clause 5.1 are disregarded for this purpose.\n\n## 8. General\n\n**8.1 Entire agreement.** This Agreement is the entire agreement between the parties on its subject matter and supersedes any earlier arrangement.\n\n**8.2 Variation.** No variation of this Agreement is effective unless it is made in writing and signed by or on behalf of both parties, including by an amendment letter from the Acquirer countersigned by the Merchant. An amendment letter states the date from which it applies.\n\n**8.3 Governing law.** This Agreement is governed by the laws of the Federal Republic of Germany. The courts of Frankfurt am Main have exclusive jurisdiction.\n\n## Schedule 1: Reference Table\n\nThe Reference Table \"interchange_table_v1\" sets out the Interchange Fee and the Scheme Fee by Card Scheme, card type and region. It is maintained by the Acquirer, made available to the Merchant on request and incorporated in this Agreement by reference.\n\n## Signatures\n\nSigned for and on behalf of **Northgate Acquiring** (the Acquirer):\n\nName: ____________________  Title: ____________________  Date: __________\n\nSigned for and on behalf of **Fernway** (the Merchant):\n\nName: ____________________  Title: ____________________  Date: __________\n</document>\n\n<document role=\"amendment_letter\">\n# Amendment No. 1 to the Master Acquiring Services Agreement\n\n*Illustrative contract text for a fictional company. Not a real agreement and not legal advice.*\n\n**From:** Northgate Acquiring (the \"Acquirer\")\n\n**To:** Fernway (the \"Merchant\")\n\n**Date:** 11 March 2026\n\n**Agreement reference:** NG-2025-01\n\nDear Sir or Madam,\n\n**Master Acquiring Services Agreement dated 1 July 2025, reference NG-2025-01 (the \"Agreement\")**\n\nWe refer to the Agreement. Terms defined in the Agreement have the same meaning in this letter, and references to clauses are to clauses of the Agreement. This letter is Amendment No. 1 to the Agreement and is made under clause 8.2.\n\n1. **Amendment Effective Date.** The amendments in paragraph 2 take effect on 1 April 2026 (the \"Amendment Effective Date\") and apply to all Transactions made on or after that date, determined in accordance with clause 1.2. Transactions made before the Amendment Effective Date remain subject to the Agreement as it stood before this letter.\n\n2. **Amendments.** With effect from the Amendment Effective Date:\n\n(a) clause 4.2 is deleted and replaced by the following:\n\n> **4.2 Markup.** (a) For each Successful Transaction the Merchant shall pay a Markup equal to the percentage of the Transaction amount shown below for the band into which the Monthly Processed Volume of the calendar month of the Transaction falls:\n>\n> | Band | Monthly Processed Volume | Markup |\n> |---|---|---|\n> | 1 | less than EUR 2,500,000.00 | 0.45% (forty-five basis points) |\n> | 2 | EUR 2,500,000.00 or more but less than EUR 8,000,000.00 | 0.32% (thirty-two basis points) |\n> | 3 | EUR 8,000,000.00 or more | 0.28% (twenty-eight basis points) |\n>\n> (b) The band is determined once the Monthly Processed Volume of the month is known, and its rate applies to every Successful Transaction of that month, including Transactions processed before the volume reached the lower limit of that band.\n>\n> (c) The Markup is subject to the monthly minimum in clause 7.4 and rounded in accordance with clause 4.4.\n\n3. **Continuation.** Except as amended by this letter, the Agreement continues in full force and effect, and every other clause, including the fees, the rounding rules and the dispute period, applies unchanged. From the Amendment Effective Date, references to the Agreement are to the Agreement as amended by this letter.\n\n4. **Governing law.** This letter is governed by the law that governs the Agreement.\n\nPlease countersign this letter to confirm the Merchant's agreement.\n\nYours faithfully,\n\nSigned for and on behalf of **Northgate Acquiring** (the Acquirer):\n\nName: ____________________  Title: ____________________  Date: __________\n\nSigned for and on behalf of **Fernway** (the Merchant):\n\nName: ____________________  Title: ____________________  Date: __________\n</document>\n\nExtract the complete contract version that the amendment letter creates."
+      }
+    ],
+    "output_config": {
+      "effort": "high",
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "required": [
+            "contract_id",
+            "party",
+            "counterparty",
+            "name",
+            "version",
+            "effective_from",
+            "currency",
+            "timezone",
+            "rounding",
+            "dispute_window_days",
+            "terms"
+          ],
+          "properties": {
+            "contract_id": {
+              "type": "string"
+            },
+            "party": {
+              "const": "provider"
+            },
+            "counterparty": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "effective_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "format": "date"
+            },
+            "currency": {
+              "enum": [
+                "EUR"
+              ]
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "rounding": {
+              "type": "object",
+              "required": [
+                "mode",
+                "level"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "half_up",
+                    "half_even"
+                  ]
+                },
+                "level": {
+                  "enum": [
+                    "transaction",
+                    "invoice_line"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "dispute_window_days": {
+              "type": "integer"
+            },
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "clause": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "pass_through",
+                      "markup_bps_tiered",
+                      "per_transaction_fixed",
+                      "blended_rate",
+                      "volume_discount",
+                      "refund",
+                      "chargeback_fee",
+                      "monthly_minimum",
+                      "payout_fee",
+                      "fx_spread_cap"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "parameters_json": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "clause",
+                  "kind",
+                  "title",
+                  "parameters_json"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "response": {
+    "id": "msg_011Cg2V2NGK6JVdwK9YetAMC",
+    "container": null,
+    "content": [
+      {
+        "signature": "CAQSjQcKEAgSGAI4AUIIdGhpbmtpbmcSDFFJ6YKjW6M9oMdJYxoMo5m+Ray/sUp1X1WQIjALN3FEA4UUKmw0OnV1KX8f4mYSzFe7R/v5GI3Dzcl0KMFkDI2kxK0Jkm0wTCe0kuIqqgZec+3CdBh8v5YWhNd+6Bff9vFZF1dJzD2sL2DkltzZ6L1qJ63JDi29D+7gq++2OpdaNq2P2G2mT9WJlUDfXwu8BswHaPW7Ww6pmRtozImJ+YAE/5lUZTQ2RNum1v0b5rtMsmab1RXz0Q4L/EmyVQHhNp3HlrVwaXyxHPFYnARnF1EySgbFGhSS7/A8GHEnxegWx6cDWR/3affIg+NMV97fCytfcm2VAYlIna3NFvckTqgvhA9MVMa0YqyC9rGs/8MKRB1YqAtoNLzBGf1IQsX5Moz6WdYq3KoQqipmPGNInpTG0aksf8Us3V84PQm1pqpPHKuXjy0QOPgVKh8/QUsPS3X0JXBQLymgWxTLoEwBpmKzKczAnaR6PA6A9tvzJ5Lr5XUJedS4YorAQByvYsdtan0AyFbq+FHRhjQRKJWdCBERQat2Cwv5lPoPl+ZZdJ7gan3Ph723ssTCqtT6o0ImLOFkOiHyBZxGEFNTU85zZ7UZRUSdOlCyEJKPl0NxT8hxlDRCGZLi2fMFGfxN8vF7RVsMFGxu7q89+NijCB7gY42okyf8dXKO2CSwTfTGAHXpvV60AfTn9auYXM6SXGe9iXbozb3fTb5PrfVKwxTJL84HW7hTd9dk6tFwycbCvXx5lWZ6vUtrXDEfOZCIlsvP3bWfSKSCP8Xa5Ew9IiptBSxeLXh7LCMgZSTkqWAKGnDvkhSsEmkV7Y1glK5gKr39wO/2viU/O91FKpmVXd3/OkG96+YaYrX6g2hFJFcn2P6G5wV8ZF0JijLSr0q4N1fHd3QLKNt3VCaiOrSle9I/P1D3Rgy7HMmMhNaTIAiZsGaKMNCKbDu7WkWqV8aSH4M92js7MlTaN9aCF1N8xvauJPEeKpj/0o5QZH1m6f7QRd+tr9iZ1rnAiWLqZDfJyFwQNFKxJ52YuL/aGS/8sDX0fuQfoKlTbBE8hlfMDTAhDH3woO3Mdl7sWJ1GFLVWO39YKIOPgdXywqQhIv/8RL4CVHCp2xUSgl1pQU7fDGYcS0Ma4c5JpdYWsAGRqoIkK1GYZkBoZydsvm71G7SnFkLHqCXsEbHDNpRPuN0YAQ==",
+        "thinking": "",
+        "type": "thinking"
+      },
+      {
+        "citations": null,
+        "text": "{\"contract_id\":\"NG-2025-01\",\"party\":\"provider\",\"counterparty\":\"northgate\",\"name\":\"Northgate Acquiring\",\"version\":2,\"effective_from\":\"2026-04-01\",\"currency\":\"EUR\",\"timezone\":\"Europe/Berlin\",\"rounding\":{\"mode\":\"half_up\",\"level\":\"transaction\"},\"dispute_window_days\":60,\"terms\":[{\"clause\":\"3.1\",\"kind\":\"pass_through\",\"title\":\"Interchange and scheme fees passed through at cost\",\"parameters_json\":\"{\\\"components\\\":[\\\"interchange\\\",\\\"scheme_fee\\\"],\\\"reference\\\":\\\"interchange_table_v1\\\"}\"},{\"clause\":\"4.2\",\"kind\":\"markup_bps_tiered\",\"title\":\"Markup by monthly processed volume band\",\"parameters_json\":\"{\\\"basis\\\":\\\"monthly_processed_volume\\\",\\\"tiering\\\":\\\"retroactive\\\",\\\"tiers\\\":[{\\\"up_to_minor\\\":250000000,\\\"bps\\\":45},{\\\"up_to_minor\\\":800000000,\\\"bps\\\":32},{\\\"up_to_minor\\\":null,\\\"bps\\\":28}]}\"},{\"clause\":\"4.3\",\"kind\":\"per_transaction_fixed\",\"title\":\"Fixed fee per successful transaction\",\"parameters_json\":\"{\\\"amount_minor\\\":4}\"},{\"clause\":\"5.1\",\"kind\":\"refund\",\"title\":\"Refund fee and markup credit\",\"parameters_json\":\"{\\\"fee_minor\\\":10,\\\"credit_original_markup\\\":true}\"},{\"clause\":\"6.1\",\"kind\":\"chargeback_fee\",\"title\":\"Chargeback handling fee\",\"parameters_json\":\"{\\\"amount_minor\\\":1500}\"},{\"clause\":\"7.4\",\"kind\":\"monthly_minimum\",\"title\":\"Monthly minimum markup\",\"parameters_json\":\"{\\\"applies_to\\\":\\\"markup\\\",\\\"amount_minor\\\":250000}\"}]}",
+        "type": "text"
+      }
+    ],
+    "diagnostics": null,
+    "model": "claude-opus-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "inference_geo": "global",
+      "input_tokens": 8252,
+      "output_tokens": 805,
+      "output_tokens_details": {
+        "thinking_tokens": 171
+      },
+      "server_tool_use": null,
+      "service_tier": "standard"
+    }
+  },
+  "validation_errors": [],
+  "error": null
+}

@@ -1,0 +1,47 @@
+# Extracted by claude-opus-5-5 from contracts/text/kestrel-v1.md on 2026-10-14T16:58:20Z.
+# NOT APPROVED: every term has approved: false, so feeaudit.contracts refuses this file. Review each term
+# against the text, set approved: true, then promote the file (docs/llm-extraction.md).
+contract_id: KP-2025-09
+party: provider
+counterparty: kestrel
+name: Kestrel Payouts
+version: 1
+effective_from: 2025-09-01
+currency: EUR
+timezone: UTC
+rounding:
+  mode: half_up
+  level: transaction
+dispute_window_days: 45
+terms:
+- clause: '2.1'
+  kind: payout_fee
+  title: SEPA payout fee
+  approved: false
+  rail: sepa
+  fixed_minor: 20
+- clause: '2.2'
+  kind: payout_fee
+  title: Faster Payments payout fee
+  approved: false
+  rail: faster_payments
+  fixed_minor: 30
+- clause: '2.3'
+  kind: payout_fee
+  title: SWIFT payout fee
+  approved: false
+  rail: swift
+  bps: 10
+  min_minor: 800
+  cap_minor: 4000
+- clause: '4.1'
+  kind: fx_spread_cap
+  title: FX spread cap
+  approved: false
+  benchmark: fx_mid_hourly
+  rate_time: execution_hour
+  caps_bps:
+    GBP: 40
+    USD: 40
+    CHF: 40
+    PLN: 90

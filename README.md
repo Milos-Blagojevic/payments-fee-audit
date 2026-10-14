@@ -460,7 +460,15 @@ Cost allocation (A09, A32): each provider fee goes to the client whose ledger ev
 The YAML contracts above are written by hand. In practice terms arrive as PDFs and amendment letters, so `contracts/text/` holds every provider contract version rendered as legal prose (a master agreement per provider, amendments as letters that change one clause), and `python -m feeaudit.extraction extract` asks Claude to turn each into contract YAML under a JSON schema derived from `feeaudit/contract_schema.json`. Every extracted term is written with `approved: false`, and the contract loader refuses unapproved terms, so nothing a model produced reaches the engine until a person has reviewed it ([workflow](docs/llm-extraction.md)). Each call is recorded with its prompt hash, token usage and cost, and a spend ledger refuses any call that could take the total over the budget. The extraction is paid and not deterministic, so it never runs in `make all`; the build only scores the recorded output field by field against the hand-written files.
 
 <!-- generated:extraction -->
-No extraction has been recorded yet: `contracts/extracted/` is empty, so there is nothing to score.
+5 recorded call(s) to `claude-opus-5-5` cost USD 0.215116 in total. Field accuracy against the hand-written contract files: 100.0% (160 of 160 fields).
+
+| Contract | Version | Fields correct | Accuracy |
+|---|---:|---:|---:|
+| BP-2025-07 | 1 | 31 / 31 | 100.0% |
+| KP-2025-09 | 1 | 29 / 29 | 100.0% |
+| KP-2025-09 | 2 | 32 / 32 | 100.0% |
+| NG-2025-01 | 1 | 34 / 34 | 100.0% |
+| NG-2025-01 | 2 | 34 / 34 | 100.0% |
 <!-- /generated -->
 
 ## Limits and next steps

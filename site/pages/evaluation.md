@@ -1,13 +1,14 @@
 ---
 title: Evaluation
-sidebar_position: 7
+sidebar_position: 9
 ---
 
-Synthetic data. Because the data is generated, every planted billing error is known. The evaluation step (`make eval`) matches the findings against that ground truth after the checks have run; the checks never read it. Precision is the share of findings of a type that match a planted error; recall is the share of planted errors that were found.
+Synthetic data. Because the data is generated, every planted billing error is known. The evaluation step (`make eval`) matches the findings against that ground truth after the checks have run; the checks never read it. Precision is the share of findings of a type that match a planted error; recall is the share of planted errors that were found. Types D01–D15 are provider billing errors, L01–L04 errors in Fernway's billing of its clients. The planted anomaly pattern is scored on the [Anomalies](/anomalies) page.
 
 ```sql detection
 select
     truth_id,
+    case when truth_id like 'L%' then 'client' else 'provider' end as party,
     finding_type,
     planted,
     found,
@@ -64,6 +65,7 @@ select findings from fees.noise_summary where category = 'noise'
 
 <DataTable data={detection} rows=all wrapTitles=true>
     <Column id=truth_id title="Id"/>
+    <Column id=party title="Billing"/>
     <Column id=finding_type title="Finding type"/>
     <Column id=planted title="Planted" fmt=num0 totalAgg=sum/>
     <Column id=found title="Found" fmt=num0 totalAgg=sum/>

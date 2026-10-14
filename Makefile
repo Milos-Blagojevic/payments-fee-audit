@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build verify eval report test all clean
+.PHONY: install contracts data build verify eval report test all clean site
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -37,6 +37,12 @@ test:
 	$(PYTHON) -m pytest
 
 all: clean contracts data build verify eval report
+
+# Evidence report site in site/build from the warehouse built by `make all` (Node >= 20; not part of `all`).
+# Starts from an empty build and Evidence cache so no stale data extract is published.
+site:
+	rm -rf site/build site/.evidence
+	cd site && npm ci && npm run sources && npm run build
 
 clean:
 	rm -rf data

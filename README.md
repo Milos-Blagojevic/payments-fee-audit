@@ -467,6 +467,15 @@ make test
 
 `make all` takes a couple of minutes on a laptop and needs no network access. CI runs the same and fails if the committed examples or this README differ from what the build writes.
 
+### Report site
+
+An [Evidence](https://evidence.dev) site in `site/` presents the provider fee findings (rule and anomaly), dispute queue, provider costs, provider comparison, FX conversions, client billing leakage and margin, anomalies and the evaluation from the warehouse. Requires Node.js 20 or later and a warehouse built by `make all`.
+
+```bash
+make site                 # npm ci, extract the marts to site/sources, build the static site into site/build
+cd site && npm run preview  # serve the build locally; or `npm run dev` for live editing
+```
+
 ### Repository map
 
 | Path | Contents |
@@ -478,6 +487,7 @@ make test
 | `feeaudit/reference/` | Python reference engine for the differential check (`make verify`) |
 | `feeaudit/evaluation/` | Scores the findings against the planted truth (`make eval`) |
 | `feeaudit/reports/` | Finance outputs, the README blocks and the headline chart (`make report`) |
+| `site/` | Evidence report site on the marts and the evaluation (`make site`) |
 | `docs/data-contract.md` | Binding semantics of every source, term and finding type |
 | `ASSUMPTIONS.md`, `METRICS.md` | Numbered assumptions and metric definitions |
 | `tests/` | Unit and integration tests (`make test`) |
@@ -489,5 +499,9 @@ make test
 | dbt-core | 1.12.5 |
 | dbt-duckdb | 1.11.0 |
 | duckdb | 1.5.6 |
+| @evidence-dev/evidence | 40.1.8 |
+| @evidence-dev/core-components | 5.4.2 |
+| @evidence-dev/duckdb | 2.0.1 |
+| @duckdb/node-api | 1.5.6-r.1 |
 
-The full lock is in `requirements.txt` and `requirements-dev.txt`.
+The full lock is in `requirements.txt` and `requirements-dev.txt`, and for the site in `site/package-lock.json`.

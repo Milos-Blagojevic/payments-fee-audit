@@ -1,0 +1,4 @@
+# Test dependencies. Regenerate requirements-dev.txt with:
+#   uv pip compile requirements-dev.in --python-version 3.12 --no-header --no-annotate -o requirements-dev.txt
+-c requirements.txt
+pytest

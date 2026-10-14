@@ -1,0 +1,14 @@
+name: fee_audit
+version: "0.1.0"
+config-version: 2
+profile: fee_audit
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+flags:
+  send_anonymous_usage_stats: false

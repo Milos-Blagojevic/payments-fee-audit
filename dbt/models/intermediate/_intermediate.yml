@@ -459,7 +459,11 @@ models:
       - name: other_rounding_minor
         description: Expected charge under the other rounding mode.
       - name: finding_type
-        description: Rule classification of the difference (data contract section 5); null when there is nothing to report.
+        description: >
+          Rule classification of the difference (data contract section 5); null when there is nothing to report,
+          and for a component that no version of the provider's contract names (A41: the anomaly model looks at it).
+      - name: component_has_term
+        description: Whether some version of the provider's contract names the component (A41).
       - name: finding_expected_minor
         description: The amount a finding is measured against (the rescaled debit for `fx_rate_wrong_hour`, the expected charge otherwise).
       - name: basis_minor
@@ -473,7 +477,7 @@ models:
       - name: previous_version_bps
         description: The previous contract version's rate for the same tier (the reading behind `stale_rate`).
       - name: card_segment
-        description: "{{ doc('card_segment') }}"
+        description: "{{ doc('card_segment') }} For a billed charge without an expectation, the segment it was billed with."
       - name: formula
         description: Formula of the expected charge.
       - name: finding_formula
@@ -506,3 +510,75 @@ models:
         description: Rounding mode of the contract version.
       - name: dispute_window_days
         description: Dispute window of the contract version.
+
+  - name: int_daily_component_rates
+    description: >
+      Daily effective rate per provider × fee component × card segment (spec section 10, A10, A42): the billed
+      amount of the day's compared card charges (payments, refunds and chargebacks in the ledger, by UTC event day)
+      in basis points of the day's processed volume (M01 by UTC day), against the median and the median absolute
+      deviation (MAD) of the same series over the previous `anomaly_window_days` days. A series starts on its first
+      billed day; every later day with volume is a data point (rate 0 without lines). A day is scored once its
+      window holds `anomaly_window_days` data points.
+    columns:
+      - name: daily_rate_id
+        description: "`<provider>:<component>:<card_segment>:<YYYY-MM-DD>`."
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('component') }}"
+        data_tests: [not_null]
+      - name: card_segment
+        description: "{{ doc('card_segment') }}"
+        data_tests: [not_null]
+      - name: day
+        description: UTC day of the events.
+        data_tests: [not_null]
+      - name: volume_minor
+        description: Processed volume of the provider × card segment that day (M01 by UTC day), minor units.
+      - name: billed_minor
+        description: Billed amount of the component on the day's events, minor units.
+      - name: expected_minor
+        description: Expected amount of the same charges, minor units.
+      - name: line_count
+        description: Provider lines billed.
+      - name: rate_bps
+        description: billed ÷ volume in basis points (4 decimals).
+      - name: expected_rate_bps
+        description: expected ÷ volume in basis points (4 decimals).
+      - name: baseline_days
+        description: Data points in the trailing window.
+      - name: baseline_median_bps
+        description: Median of `rate_bps` over the trailing window.
+      - name: mad_bps
+        description: Median absolute deviation of the window's rates from that median.
+      - name: mean_absolute_deviation_bps
+        description: Mean absolute deviation from the median, the fallback scale when the MAD is 0 (A42).
+      - name: scoring_method
+        description: "`mad`, `mean_absolute_deviation` (MAD = 0), `constant_baseline` (both 0: any other rate is flagged) or null (window not full yet)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mad, mean_absolute_deviation, constant_baseline]
+      - name: robust_z
+        description: 0.6745 × (rate − median) ÷ MAD, or (rate − median) ÷ (1.2533 × mean absolute deviation) when the MAD is 0; 2 decimals.
+      - name: z_threshold
+        description: The `anomaly_z_threshold` var.
+      - name: is_anomaly
+        description: "|robust_z| above the threshold, or any change from a constant baseline."
+        data_tests: [not_null]
+      - name: rule_finding_charges
+        description: Charges of the day that carry a rule classification.
+      - name: rule_difference_minor
+        description: billed − expected over those charges.
+      - name: unexplained_minor
+        description: billed − expected over the other charges (money neither a rule nor the contract accounts for).
+      - name: unexplained_line_ids
+        description: Lines of the charges behind `unexplained_minor`.
+      - name: unexplained_source_files
+        description: Statement files of those lines.
+      - name: unexplained_statement_month
+        description: Earliest statement month of those lines.
+      - name: component_has_term
+        description: Whether some version of the provider's contract names the component (A41).

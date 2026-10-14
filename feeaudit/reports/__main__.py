@@ -8,10 +8,11 @@ from pathlib import Path
 
 import duckdb
 
-from feeaudit.reports import finance, readme, trace
+from feeaudit.reports import client, finance, readme, trace
 from feeaudit.reports.common import as_of_date, write
 
-EXAMPLES = ["findings_summary.md", "provider_costs.md", "provider_comparison.md", "follow_one_finding.md"]
+EXAMPLES = ["findings_summary.md", "provider_costs.md", "provider_comparison.md", "follow_one_finding.md",
+            "client_report.md"]
 
 
 def outputs(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
@@ -21,6 +22,7 @@ def outputs(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
     files.update(finance.findings_summary(con, as_of))
     files.update(finance.dispute_packs(con, as_of))
     files.update(finance.provider_comparison(con))
+    files.update(client.client_report(con))
     files["follow_one_finding.md"] = trace.render(con)
     return files
 

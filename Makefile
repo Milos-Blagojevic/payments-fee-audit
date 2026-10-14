@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build test all clean
+.PHONY: install contracts data build verify test all clean
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -20,10 +20,15 @@ data:
 build:
 	$(DBT) build $(DBT_ARGS)
 
+# Python reference engine (schema `reference`), then the differential check against int_expected_charges.
+verify:
+	$(PYTHON) -m feeaudit.reference
+	$(PYTHON) -m feeaudit.verify
+
 test:
 	$(PYTHON) -m pytest
 
-all: clean contracts data build
+all: clean contracts data build verify
 
 clean:
 	rm -rf data

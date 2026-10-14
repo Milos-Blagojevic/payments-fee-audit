@@ -13,6 +13,10 @@ clean-targets: [target, dbt_packages]
 flags:
   send_anonymous_usage_stats: false
 
+vars:
+  # Reference date for dispute deadlines (`days_left`) in fct_findings and fct_dispute_queue (A22).
+  as_of_date: "2026-07-15"
+
 models:
   fee_audit:
     # Tables everywhere: the staging models are read several times downstream and DuckDB builds them in seconds.

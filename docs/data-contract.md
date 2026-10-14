@@ -109,4 +109,97 @@ N01 exact duplicate rows (same line id) in a re-exported file; N02 Brightpay amo
 
 ## 8. Provider exports and invoices
 
-Written by the generator; this section is completed in phase 2 with each file's path pattern, columns, units and quirks.
+Written by `python -m generator` under `data/raw/` (git-ignored) and loaded by `python -m feeaudit.load`: every directory `data/raw/<source>/<entity>/` becomes table `raw.<source>__<entity>`. Empty CSV fields load as `NULL`; every other value is kept verbatim (padding and case included). Statement files are one per statement month (`<YYYY-MM>` in the name); the statement month is the event's month in the contract time zone, except for N04 lines. Events of the provider month after the period (Northgate: 2026-06-30 22:00 UTC onwards, which is July in Berlin) are not billed yet and appear in no file. Every fee is in EUR.
+
+### 8.1 Northgate settlement lines (`northgate__settlement_lines`)
+
+`data/raw/northgate/settlement_lines/northgate_settlement_<YYYY-MM>.csv`, one row per fee line.
+
+| Column | Content |
+|---|---|
+| `line_ref` | Line id, `NG` + 9 digits |
+| `txn_ref` | Fernway event id (`pay_…`, `ref_…`, `cb_…`); empty on `MONTHLY_MINIMUM` lines and on N06 lines |
+| `merchant_ref` | Client id |
+| `txn_time` | Event time in Europe/Berlin local time, `YYYY-MM-DD HH:MM:SS`, no offset (N03) |
+| `period` | `YYYY-MM`, only on `MONTHLY_MINIMUM` lines |
+| `line_type` | `INTERCHANGE`, `SCHEME_FEE`, `MARKUP`, `FIXED_FEE` (per successful payment), `REFUND_FEE`, `MARKUP_CREDIT` (per refund), `CHARGEBACK_FEE`, `MONTHLY_MINIMUM` |
+| `txn_amount`, `txn_currency` | Event amount in major units and its currency (N05: `eur`, ` EUR`, `Eur`, …) |
+| `card_brand`, `card_product`, `card_region` | `VISA`/`MASTERCARD`, `CONSUMER_DEBIT`/`CONSUMER_CREDIT`/`COMMERCIAL`, `DOMESTIC`/`INTRA_EEA`/`INTER_REGIONAL`; N05 variants: `Visa`, `visa`, `VISA `, `MC`, `Mastercard`, `mastercard`, `Consumer Debit`, `consumer-debit`, `Commercial`, `commercial ` |
+| `fee_amount`, `fee_currency` | Fee in major units, negative for `MARKUP_CREDIT`; currency `EUR` |
+
+Quirks: amounts in major units; the 2026-03 file (configurable) uses `;` as delimiter and `,` as decimal separator (N02); the 2026-02 file repeats a few rows, same `line_ref`, at its end (N01); events in the last two Berlin days of a month can be in the next month's file (N04). Declined and failed attempts have no lines. A fee that rounds to 0.00 is still a line. A `MONTHLY_MINIMUM` line exists only when a minimum is billed.
+
+### 8.2 Brightpay transactions export (`brightpay__transactions_export`) and adjustments (`brightpay__adjustments`)
+
+`data/raw/brightpay/transactions_export/brightpay_transactions_<YYYY-MM>.csv`, one row per payment attempt (declined and failed included), refund and chargeback.
+
+| Column | Content |
+|---|---|
+| `id` | Line id, `bp_` + 9 digits |
+| `type` | `payment`, `refund`, `chargeback` |
+| `status` | Payments: `captured`, `declined`, `failed`; refunds and chargebacks: `completed` |
+| `merchant_reference` | Fernway event id; empty on N06 rows |
+| `sub_merchant` | Client id |
+| `created` | Event time, UTC, `YYYY-MM-DDTHH:MM:SSZ` |
+| `amount`, `currency` | Event amount in minor units (N02) and its currency (N05 variants) |
+| `card_network`, `card_type`, `card_region` | `visa`/`mastercard`, `consumer_debit`/`consumer_credit`/`commercial`, `domestic`/`intra_eea`/`inter_regional`; N05 variants: `Visa`, `VISA`, `MasterCard`, `mc`, `Consumer Debit`, `debit`, `Consumer Credit`, `credit`, `Commercial`, `business` |
+| `fee`, `fee_currency` | All-in fee in minor units (`transaction_fee`, `refund_fee` or `chargeback_fee` by `type`); `0` on declined and failed attempts |
+
+Quirks: the 2026-04 file repeats a few rows at its end (N01); last-two-days events can be in the next month's file (N04); some half-even ties are rounded half-up (N08). A D06 duplicate is a second row with its own `id` and the same `merchant_reference`.
+
+`data/raw/brightpay/adjustments/brightpay_adjustments_<YYYY-MM>.csv`: `adjustment_id`, `period` (`YYYY-MM`), `type` (`volume_discount`), `description`, `amount` (minor units, negative), `currency`. One row per month with a non-zero volume adjustment; the file has only a header otherwise.
+
+### 8.3 Kestrel payouts statement (`kestrel__payouts_statement`)
+
+`data/raw/kestrel/payouts_statement/kestrel_payouts_<YYYY-MM>.csv`, one row per payout, by UTC month of `executed_at`. For payouts, `executed_at` selects the contract version, the month and the FX hour.
+
+| Column | Content |
+|---|---|
+| `statement_line_id` | Line id, `KST-` + 7 digits; the line carries two components, `payout_fee` and `fx_conversion` |
+| `client_payout_ref` | Fernway payout id; empty on N06 rows |
+| `client_id` | Client id |
+| `payout_currency`, `payout_amount` | Currency (N05 variants) and amount in major units |
+| `rail` | `SEPA`, `FASTER_PAYMENTS`, `SWIFT`, `ELIXIR` |
+| `fee_eur` | Payout fee, major units |
+| `fx_rate_applied` | Payout-currency units per 1 EUR, 6 decimals; empty for EUR payouts |
+| `rate_timestamp` | Start of the hour whose rate was used, `YYYY-MM-DDTHH:MM:SS+00:00`; empty for EUR payouts |
+| `eur_debited` | EUR debited for the payout, major units (equals `payout_amount` for EUR payouts) |
+| `executed_at` | Execution time, `YYYY-MM-DDTHH:MM:SS+00:00` |
+
+### 8.4 Provider invoices (`northgate__invoices`, `brightpay__invoices`, `kestrel__invoices`)
+
+One file per provider, one row per statement month: `data/raw/<provider>/invoices/<provider>_invoices.csv`.
+
+| Provider | Columns | Units | Invoice date |
+|---|---|---|---|
+| Northgate | `invoice_no`, `period`, `invoice_date`, `total_amount`, `currency` | major | 5th of the next month |
+| Brightpay | `invoice_id`, `billing_month`, `issued_on`, `total`, `currency` | minor | 3rd of the next month |
+| Kestrel | `invoice_number`, `statement_month`, `invoice_date`, `amount_eur`, `currency` | major | 7th of the next month |
+
+The total equals the sum of the statement month's distinct lines (N01 repeats counted once): Northgate `fee_amount`; Brightpay `fee` plus the month's adjustment; Kestrel `fee_eur` only (FX debits are settled against the account balance, not invoiced). No invoice-level discrepancy is planted.
+
+### 8.5 Client invoices (`fernway__client_invoices`, `fernway__client_invoice_lines`)
+
+`data/raw/fernway/client_invoices/fernway_client_invoices_<YYYY-MM>.csv`: `invoice_id` (`FW-<YYYY-MM>-<client_id>`), `client_id`, `period`, `invoice_date` (2nd of the next month), `currency` (`EUR`), `total_minor` (sum of the invoice's lines).
+
+`data/raw/fernway/client_invoice_lines/fernway_client_invoice_lines_<YYYY-MM>.csv`: `invoice_id`, `line_no`, `component` (section 4.2), `description`, `quantity` (payments, payouts or non-EUR payouts counted; `1` for the platform fee), `amount_minor` (negative for discounts). `payment_fees` and `platform_fee` lines are always present; other components only when non-zero.
+
+How Fernway bills (the generator's rules, which the client checks reproduce):
+
+- Events: those in the ledger export (so the last period month excludes the lag day), by UTC month; payments by `created_at`, payouts by `executed_at`. The agreement version is the one in force at that timestamp.
+- `payment_fees`: the exact sum over succeeded payments of `amount × bps / 10000 + fixed_minor` by segment, rounded once.
+- `payout_fees_<rail>`: `fixed_minor` per payout on that rail.
+- `fx_markup`: `round(Σ E × bps / 10000)` over non-EUR payouts, with `E = round(amount_minor / mid)` per payout at the mid of the hour containing `executed_at` (as for the provider SWIFT fee).
+- `volume_discount`: `−round(exact payment-fee sum × discount_pct / 100)`, tier by the client's monthly volume of succeeded payments (`up_to_minor` exclusive).
+- `promo_discount`: `−round(exact payment-fee sum of payments created on or before valid_until (UTC date) × discount_pct / 100)`. Both discounts use the unrounded payment-fee sum and do not compound.
+
+### 8.6 Other sources
+
+- `fernway__clients`: `data/raw/fernway/clients/fernway_clients.csv` (columns in section 3); switch dates are UTC dates from which new payments go to the other provider.
+- `fx__mid_hourly`: `data/raw/fx/mid_hourly/fx_mid_hourly_<YYYY-MM>.csv`, covering two days before to four days after the period.
+
+### 8.7 Truth files
+
+`data/truth/discrepancies.csv`, `client_leakage.csv`, `noise_events.csv`, `parameters.csv`, loaded into schema `truth` with typed columns (`line_ids` as `VARCHAR[]`). `difference_minor = billed_minor − correct_minor`. Month-level types (D02, D05, D10) have no `event_id`; their `line_ids` list every line whose amount was changed (none for D10). D04 lists the refund's `REFUND_FEE` line; D11/D12 money is on the EUR debit (D11 correct = the cap allowance), D13 on the fee. Only lines whose billed amount differs from the correct amount are planted, so every discrepancy is at least one minor unit. Noise rows give `source_file` and `source_row` of the affected line; file-level noise (N02 per file in minor units or with comma decimals, N03 per Northgate file) has an empty `source_row`. `parameters` holds every config key (dotted path) with its JSON value.
+
+Planting rules beyond section 5: D02 orders the month's payments by (`created_at`, payment id) and bills at the first tier rate every payment whose running volume, itself included, is below the threshold. D12 uses the provider's normal spread on the mid of a worse hour within ±6 h, and only where the billed debit stays at or below the D11 allowance. D14 is planted on Northgate (every non-zero line of a payment that is not in the ledger) and Brightpay, not on Kestrel (a phantom payout would also debit its principal). Month-level types are never planted in the last period month.

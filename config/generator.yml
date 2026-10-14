@@ -1,0 +1,118 @@
+# Every parameter of the synthetic world. `make data` reads this file; truth.parameters records it.
+# Money is in EUR unless a key ends in _minor (integer cents). Shares are probabilities.
+seed: 20260101
+period: {start: 2026-01-01, end: 2026-06-30}   # inclusive UTC dates
+ledger_lag_days: 1                              # export date D holds the events of D - 1 (N07)
+
+world:
+  n_clients: 40
+  countries: {DE: 0.24, FR: 0.12, NL: 0.10, ES: 0.08, IT: 0.08, AT: 0.05, BE: 0.05, PL: 0.16, GB: 0.12}
+  size_sigma: 0.9                 # lognormal spread of the clients' payment counts
+  ticket_median_eur: 54           # typical median card payment
+  ticket_median_sigma: 0.2        # spread of the median across clients
+  northgate_volume_share: 0.55    # initial routing by expected card volume
+  switches:                       # mid-period provider switches; the client is drawn among mid-sized clients
+    - {from: brightpay, date: 2026-03-16}
+    - {from: brightpay, date: 2026-04-20}
+    - {from: northgate, date: 2026-05-11}
+
+payments:
+  attempts: 400000
+  status_shares: {succeeded: 0.94, declined: 0.045, failed: 0.015}
+  month_weights: {1: 0.80, 2: 0.86, 3: 1.00, 4: 1.07, 5: 1.12, 6: 1.18}     # per-day weight by month
+  weekday_weights: [0.95, 0.95, 0.97, 1.0, 1.08, 1.15, 1.05]               # Monday first
+  hour_weights: [1, 0.6, 0.4, 0.3, 0.3, 0.5, 1, 2, 3, 4, 4.5, 5, 5.5, 5, 4.5, 4.5, 5, 5.5, 6, 7, 7.5, 6.5, 4, 2]
+  amount_sigma: 0.8
+  amount_min_eur: 1
+  amount_max_eur: 5000
+  price_points: {whole: 0.35, half: 0.15, ninety_nine: 0.20}             # rest: any cent value
+  card_scheme: {visa: 0.60, mastercard: 0.40}
+  card_type: {consumer_debit: 0.53, consumer_credit: 0.42, commercial: 0.05}
+  card_region: {domestic: 0.64, intra_eea: 0.32, inter_regional: 0.04}
+
+refunds: {rate: 0.03, min_days: 1, max_days: 30}
+chargebacks: {rate: 0.003, min_days: 20, max_days: 90}
+
+payouts:
+  count: 60000
+  weekday_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 0.25, 0.15]
+  hours_utc: [6, 19]                       # created between these hours
+  execution_delay_seconds: [120, 14400]
+  amount_median_eur: 300
+  amount_sigma: 1.1
+  amount_min_eur: 10
+  amount_max_eur: 30000
+  large_swift: {share: 0.012, min_eur: 45000, max_eur: 120000}   # big enough to hit the SWIFT fee cap
+  currency_by_country:
+    PL: {PLN: 0.80, EUR: 0.20}
+    GB: {GBP: 0.85, EUR: 0.10, USD: 0.05}
+    default: {EUR: 0.78, GBP: 0.06, USD: 0.08, CHF: 0.06, PLN: 0.02}
+  elixir_launch: 2026-04-01                # PLN payouts executed from this date go mostly over Elixir
+  elixir_share_after_launch: 0.9
+
+fx:
+  pairs:
+    EURGBP: {start: 0.8600, daily_vol: 0.0040}
+    EURUSD: {start: 1.0900, daily_vol: 0.0055}
+    EURCHF: {start: 0.9400, daily_vol: 0.0040}
+    EURPLN: {start: 4.2800, daily_vol: 0.0050}
+  days_before: 2                           # series margin around the period
+  days_after: 4
+  kestrel_spread_share_of_cap: [0.5, 0.9]  # Kestrel's normal spread, as a share of the contract cap
+
+client_agreements:
+  v1_effective_from: 2025-10-01
+  v2_effective_from: 2026-04-01            # adds the Elixir rail fee
+  dispute_window_days: 30
+  eea_consumer_bps: [170, 180, 190, 200, 210, 220]
+  eea_consumer_fixed_minor: 25
+  other_bps: [320, 340, 360, 380]
+  other_fixed_minor: 30
+  rails_fixed_minor: {sepa: 35, faster_payments: 45, swift: 1200}
+  elixir_fixed_minor: 45
+  fx_markup_bps: [40, 50, 60, 75]
+  platform_fee_minor: [19900, 49900, 99900]   # small, medium, large clients by size tercile
+  volume_discount_tiers:                      # retroactive, by the client's monthly processed volume
+    - {up_to_minor: 15000000, discount_pct: 0}
+    - {up_to_minor: 40000000, discount_pct: 5}
+    - {up_to_minor: null, discount_pct: 10}
+  promo:
+    share_of_clients: 0.3
+    discount_pct: [10, 15, 20, 25]
+    valid_until: [2026-02-28, 2026-03-31, 2026-04-30, 2026-12-31]
+
+invoices:
+  northgate_day: 5          # invoice date: this day of the month after the statement month
+  brightpay_day: 3
+  kestrel_day: 7
+  fernway_day: 2
+
+discrepancies:
+  D01: {days: 12, share: 1.0}                      # stale rate after the Northgate amendment
+  D02: {months: ["2026-03", "2026-05"]}            # retroactive tier not applied
+  D03: {share_of_commercial: 0.06, extra_bps: [10, 40]}
+  D04: {share: 0.08}                               # Northgate refunds without the markup credit
+  D05: {months: ["2026-02", "2026-04"], billed_minor: 250000}
+  D06: {share: 0.002}                              # Brightpay payments charged twice
+  D07: {share: 0.004}                              # EEA consumer billed at the other rate
+  D08: {share: 0.02}                               # fee on declined or failed attempts
+  D09: {share: 0.3, billed_minor: 2500}            # chargeback fee
+  D10: {months: ["2026-03", "2026-05"]}            # Brightpay volume discount missing
+  D11: {share: 0.01, excess_bps: [5, 40]}          # FX spread above the cap
+  D12: {share: 0.01, max_hour_offset: 6}           # FX rate from a worse hour
+  D13: {share: 0.3}                                # SWIFT fee cap not applied
+  D14: {northgate_events: 8, brightpay_events: 15} # charges for events not in the ledger
+  D15: {share: 0.05}                               # Brightpay refund fee missing
+
+noise:
+  N01: {files: {northgate: "2026-02", brightpay: "2026-04"}, share: 0.003}
+  N02: {northgate_comma_month: "2026-03"}
+  N04: {last_days: 2, share: 0.5}
+  N05: {share: 0.03}
+  N06: {share: 0.02}
+  N08: {share_of_ties: 0.3}
+
+leakage:
+  L02: {clients: 2, extra_months: 2}   # promo applied after its end date
+  L03: {clients: 1}                    # FX markup not billed
+  L04: {share: 0.1}                    # client-months billed one discount tier too high

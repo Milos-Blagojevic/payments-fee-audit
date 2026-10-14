@@ -1,0 +1,53 @@
+# Fernway pricing agreement with Dunmore Mart, version 2: adds the Elixir payout rail. Illustrative terms.
+contract_id: FW-CL033
+party: client
+counterparty: CL033
+name: Dunmore Mart
+version: 2
+effective_from: 2026-04-01
+currency: EUR
+timezone: UTC
+rounding: {mode: half_up, level: invoice_line}
+dispute_window_days: 30
+terms:
+  - clause: "2.1"
+    kind: payment_fee_by_segment
+    title: Fee per successful card payment by card segment
+    component: payment_fees
+    segments:
+      eea_consumer: {bps: 210, fixed_minor: 25}
+      other: {bps: 360, fixed_minor: 30}
+  - clause: "2.2"
+    kind: payout_fee_by_rail
+    title: Fee per payout by rail
+    rails:
+      sepa: {fixed_minor: 35}
+      faster_payments: {fixed_minor: 45}
+      swift: {fixed_minor: 1200}
+      elixir: {fixed_minor: 45}
+  - clause: "2.3"
+    kind: fx_markup
+    title: FX markup on the EUR equivalent at mid of each non-EUR payout
+    component: fx_markup
+    bps: 60
+  - clause: "3.1"
+    kind: platform_fee
+    title: Monthly platform fee
+    component: platform_fee
+    amount_minor: 49900
+  - clause: "4.1"
+    kind: volume_discount_tiered
+    title: Discount on the month's payment fees by monthly processed volume, applied to the whole volume
+    component: volume_discount
+    basis: monthly_processed_volume
+    tiering: retroactive
+    tiers:
+      - {up_to_minor: 15000000, discount_pct: 0}
+      - {up_to_minor: 40000000, discount_pct: 5}
+      - {up_to_minor: null, discount_pct: 10}
+  - clause: "4.2"
+    kind: promo_discount
+    title: Launch promotion on payment fees, for payments up to and including the end date
+    component: promo_discount
+    discount_pct: 15
+    valid_until: 2026-04-30

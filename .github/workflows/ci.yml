@@ -20,6 +20,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: site/package-lock.json
+      # site/package-lock.json is written by npm 11; npm 10 (bundled with Node 22) reads it as out of sync.
+      - run: npm install -g npm@11.6.2
       - run: make install
       - run: make all
       - name: Committed examples and README match the build

@@ -17,3 +17,13 @@ dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml
 logs/
+
+# Evidence site (make site)
+site/node_modules/
+site/.evidence/
+site/.svelte-kit/
+site/build/
+site/static/data/
+site/sources/**/*.parquet
+site/*.options.yaml
+site/.env

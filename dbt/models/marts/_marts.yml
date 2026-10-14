@@ -3,10 +3,12 @@ version: 2
 models:
   - name: fct_findings
     description: >
-      Rule findings (spec 8.5): every compared charge whose billed amount differs from the contract by at least one
-      minor unit, classified by the rule semantics of data contract section 5. The retroactive-tier pattern is one
-      finding per provider × month; every other finding is one line or event × component. Month-level checks of a
-      month the ledger does not cover yet, and lines after the ledger watermark, are pending and never findings.
+      The single findings table. Rule findings (spec 8.5, `method = 'rule'`): every compared charge whose billed
+      amount differs from the contract by at least one minor unit, classified by the rule semantics of data contract
+      section 5. The retroactive-tier pattern is one finding per provider × month; every other rule finding is one
+      line or event × component. Month-level checks of a month the ledger does not cover yet, and lines after the
+      ledger watermark, are pending and never findings. Anomaly findings (spec 10, `method = 'anomaly'`): the
+      fct_anomalies rows that neither a rule finding nor the contract explains (A44).
     columns:
       - name: finding_id
         description: Stable hash of the finding's inputs (method, party, provider, type, month, event, component, line ids).
@@ -21,7 +23,9 @@ models:
         description: The provider (or client) the finding is against.
         data_tests: [not_null]
       - name: finding_type
-        description: Finding type of data contract section 5, `rounding` or `fee_mismatch` (anything no rule explains).
+        description: >
+          Finding type of data contract section 5, `rounding` or `fee_mismatch` (anything no rule explains) for rule
+          findings; `new_component` or `rate_shift` for anomaly findings.
         data_tests:
           - not_null
           - accepted_values:
@@ -44,8 +48,10 @@ models:
                   - refund_fee_missing
                   - rounding
                   - fee_mismatch
+                  - new_component
+                  - rate_shift
       - name: month
-        description: First day of the event's month in the contract's time zone; for provider × month findings the provider month.
+        description: First day of the event's month in the contract's time zone; for provider × month findings the provider month; for anomaly findings the UTC month of the day.
         data_tests: [not_null]
       - name: event_id
         description: Ledger event id; null for provider × month findings and for charges with no ledger event.
@@ -61,10 +67,13 @@ models:
         description: "{{ doc('contract_version') }}"
         data_tests: [not_null]
       - name: clause
-        description: "{{ doc('clause') }}"
-        data_tests: [not_null]
+        description: "{{ doc('clause') }} Null for an anomaly on a component no clause names."
+        data_tests:
+          - not_null:
+              config:
+                where: "method = 'rule'"
       - name: expected_minor
-        description: What the contract allows, minor units.
+        description: What the contract allows, minor units; for an anomaly finding, what the baseline rate would bill (0 for a new component).
         data_tests: [not_null]
       - name: billed_minor
         description: What was billed, minor units.
@@ -94,11 +103,99 @@ models:
       - name: days_left
         description: Days from the `as_of_date` var to the dispute deadline (negative = past, A22).
       - name: method
-        description: "`rule` (or `anomaly` for the anomaly model)."
+        description: "`rule` (section 5 rules) or `anomaly` (fct_anomalies, spec 10)."
         data_tests:
           - accepted_values:
               arguments:
                 values: [rule, anomaly]
+
+  - name: fct_anomalies
+    description: >
+      Billing patterns no rule describes (spec section 10). `rate_shift`: a day whose effective rate of a provider ×
+      fee component × card segment is beyond the robust z-score threshold against its trailing median
+      (int_daily_component_rates, A10, A42). `new_component`: the first day a provider bills a fee component that no
+      version of its contract names, after `anomaly_window_days` days of its history (A43). Each row states the
+      baseline, the observed value and the threshold, and whether the day's money is already explained by rule
+      findings or by the contract; only unexplained rows become findings (`is_finding`, A44).
+    columns:
+      - name: anomaly_id
+        description: "`<anomaly_type>:<provider>:<component>:<card_segment>:<YYYY-MM-DD>`."
+        data_tests: [unique, not_null]
+      - name: anomaly_type
+        description: "`rate_shift` or `new_component`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [rate_shift, new_component]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('component') }}"
+        data_tests: [not_null]
+      - name: card_segment
+        description: "{{ doc('card_segment') }} `all` for `new_component`."
+        data_tests: [not_null]
+      - name: day
+        description: UTC day of the events.
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC month of `day`.
+      - name: observed_rate_bps
+        description: The day's billed amount in basis points of the day's processed volume (the segment's for `rate_shift`, the provider's for `new_component`; null for a payout provider).
+      - name: baseline_rate_bps
+        description: Median rate of the trailing window (0 for `new_component`).
+      - name: baseline_days
+        description: Days in the trailing window (`rate_shift`) or days of the provider's history before the first appearance (`new_component`).
+      - name: mad_bps
+        description: Median absolute deviation of the window's rates.
+      - name: mean_absolute_deviation_bps
+        description: Mean absolute deviation, the fallback scale when the MAD is 0 (A42).
+      - name: scoring_method
+        description: "`mad`, `mean_absolute_deviation`, `constant_baseline` or `first_appearance`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mad, mean_absolute_deviation, constant_baseline, first_appearance]
+      - name: robust_z
+        description: Robust z-score (null for `constant_baseline` and `first_appearance`).
+      - name: z_threshold
+        description: The `anomaly_z_threshold` var (null for `new_component`, flagged on any amount).
+      - name: volume_minor
+        description: Processed volume the rate relates to (M01 by UTC day), minor units.
+      - name: billed_minor
+        description: Billed amount of the component that day, minor units.
+      - name: baseline_minor
+        description: What the baseline rate would bill on the day's volume, minor units (0 for `new_component`).
+      - name: line_count
+        description: Provider lines billed that day.
+      - name: rule_finding_charges
+        description: Charges of the day that a rule classifies.
+      - name: rule_difference_minor
+        description: billed − expected over those charges.
+      - name: unexplained_minor
+        description: billed − expected over the other charges (money neither a rule nor the contract accounts for).
+      - name: unexplained_line_ids
+        description: Lines behind `unexplained_minor` (the anomaly finding's `line_ids`).
+      - name: unexplained_source_files
+        description: Statement files of those lines.
+      - name: unexplained_statement_month
+        description: Earliest statement month of those lines (the invoice an anomaly finding belongs to).
+      - name: component_has_term
+        description: Whether some version of the provider's contract names the component (A41).
+      - name: explained_by
+        description: "`rule_findings` (the shift is the money of rule findings on the same charges), `contract` (every charge equals its expected amount, as on a new tier or contract version) or null (unexplained)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [rule_findings, contract]
+      - name: is_finding
+        description: True when unexplained; the row is then an anomaly finding in fct_findings.
+        data_tests: [not_null]
+      - name: explanation
+        description: Baseline, observed value, threshold and explanation in plain words.
+        data_tests: [not_null]
 
   - name: fct_invoice_reconciliation
     description: >

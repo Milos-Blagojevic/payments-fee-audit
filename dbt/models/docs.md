@@ -27,7 +27,7 @@ Fernway ledger event id (`pay_…`, `ref_…`, `cb_…`, `po_…`).
 {% enddocs %}
 
 {% docs component %}
-Fee component (data contract section 4.1): `interchange`, `scheme_fee`, `markup`, `fixed_fee`, `transaction_fee`, `refund_fee`, `markup_credit`, `chargeback_fee`, `monthly_minimum`, `volume_adjustment`, `payout_fee` or `fx_conversion`.
+Fee component (data contract section 4.1): `interchange`, `scheme_fee`, `markup`, `fixed_fee`, `transaction_fee`, `refund_fee`, `markup_credit`, `chargeback_fee`, `monthly_minimum`, `volume_adjustment`, `payout_fee` or `fx_conversion`; or the lower-case name of a Northgate line type the data contract does not list (A40).
 {% enddocs %}
 
 {% docs client_id %}

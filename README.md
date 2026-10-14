@@ -19,7 +19,7 @@ From 2026-01 to 2026-06, 18,230 provider charges differ from the contracts: EUR 
 Fernway is a fictional payments company. It processes card payments for its clients through two acquirers, Northgate (interchange and scheme fees at cost plus a tiered markup) and Brightpay (one blended rate per card segment), and pays out to clients through Kestrel (payout fees and FX conversion). Contracts are versioned YAML files under `contracts/`; an amendment in the middle of the period changes some rates. The generator writes the internal ledger, each provider's exports and invoices in their own formats and quirks, and plants billing errors of known types, amounts and lines. The data is synthetic because real provider statements are confidential, and because only planted errors give a ground truth to score against.
 
 <!-- generated:world -->
-Ledger: 397,608 payments, 10,211 refunds, 757 chargebacks, 59,557 payouts for 40 clients, 2026-01-01 to 2026-06-29; 1,175,301 provider lines to check.
+Ledger: 397,608 payments, 10,211 refunds, 757 chargebacks, 59,557 payouts for 40 clients, 2026-01-01 to 2026-06-29; 1,248,256 provider lines to check.
 
 | Provider | Contract | Version | In force | Dispute window | Clauses |
 |---|---|---|---|---|---|
@@ -175,6 +175,7 @@ flowchart LR
     int_charge_comparison
     int_client_billing_comparison
     int_contract_tiers
+    int_daily_component_rates
     int_expected_charges
     int_expected_client_billing
     int_ledger_events
@@ -188,6 +189,7 @@ flowchart LR
   end
   subgraph marts
     dim_contract_terms
+    fct_anomalies
     fct_client_billing_findings
     fct_client_margin
     fct_dispute_queue
@@ -198,14 +200,17 @@ flowchart LR
     fct_provider_costs
   end
   raw --> staging
+  fct_anomalies --> fct_findings
   fct_findings --> fct_dispute_queue
   fct_findings --> fct_invoice_reconciliation
   fct_fx_conversions --> fct_client_margin
+  int_charge_comparison --> fct_anomalies
   int_charge_comparison --> fct_findings
   int_charge_comparison --> fct_fx_conversions
   int_charge_comparison --> fct_invoice_reconciliation
   int_charge_comparison --> fct_provider_comparison
   int_charge_comparison --> fct_provider_costs
+  int_charge_comparison --> int_daily_component_rates
   int_client_billing_comparison --> fct_client_billing_findings
   int_client_billing_comparison --> fct_client_margin
   int_contract_tiers --> dim_contract_terms
@@ -214,14 +219,17 @@ flowchart LR
   int_contract_tiers --> int_client_billing_comparison
   int_contract_tiers --> int_expected_charges
   int_contract_tiers --> int_expected_client_billing
+  int_daily_component_rates --> fct_anomalies
   int_expected_charges --> fct_fx_conversions
   int_expected_charges --> int_charge_comparison
   int_expected_client_billing --> int_client_billing_comparison
+  int_ledger_events --> fct_anomalies
   int_ledger_events --> fct_client_margin
   int_ledger_events --> fct_fx_conversions
   int_ledger_events --> fct_provider_comparison
   int_ledger_events --> fct_provider_costs
   int_ledger_events --> int_charge_comparison
+  int_ledger_events --> int_daily_component_rates
   int_ledger_events --> int_expected_charges
   int_ledger_events --> int_expected_client_billing
   int_ledger_events --> int_provider_cost_allocation
@@ -253,6 +261,7 @@ flowchart LR
   stg_brightpay__invoices --> int_provider_invoices
   stg_brightpay__transactions_export --> int_provider_lines
   stg_contracts__contract_terms --> dim_contract_terms
+  stg_contracts__contract_terms --> fct_findings
   stg_contracts__contract_terms --> fct_provider_comparison
   stg_contracts__contract_terms --> int_charge_comparison
   stg_contracts__contract_terms --> int_client_billing_comparison
@@ -292,12 +301,12 @@ Every provider line gets one reconciliation status. Matched lines are compared w
 <!-- generated:reconciliation -->
 | Status | Matched by | Reason | Northgate | Brightpay | Kestrel | All lines |
 |---|---|---|---:|---:|---:|---:|
-| `matched` | fallback |  | 7,989 | 2,114 | 1,224 | 11,327 |
+| `matched` | fallback |  | 8,696 | 2,114 | 1,224 | 12,034 |
 | `matched` | provider_month |  | 2 | 4 | 0 | 6 |
-| `matched` | reference |  | 950,847 | 147,930 | 58,333 | 1,157,110 |
+| `matched` | reference |  | 1,021,820 | 147,930 | 58,333 | 1,228,083 |
 | `provider_only` |  | unknown_event | 32 | 15 | 0 | 47 |
 | `provider_only` | reference | duplicate | 0 | 271 | 0 | 271 |
-| `unmatched_pending` |  | ledger_lag | 5,182 | 915 | 443 | 6,540 |
+| `unmatched_pending` |  | ledger_lag | 6,457 | 915 | 443 | 7,815 |
 <!-- /generated -->
 
 The provider files carry realistic noise that must never become a finding:
@@ -373,12 +382,35 @@ The findings are compared with the generator's planted errors (`make eval`, sche
 - Differential check: the Python reference engine computed 1,195,656 expected charges, the dbt models 1,195,656; **0** differ in key or amount.
 <!-- /generated -->
 
+## Anomaly detection
+
+Rules only catch what a contract describes. A second pass (`fct_anomalies`) looks for billing patterns no rule describes: a fee type the provider never billed before, or a daily effective rate that moves away from its recent level. Each flagged day states its baseline, the observed value and the threshold, and whether the contract or a rule finding already explains it; only what neither explains becomes a finding with `method = 'anomaly'`.
+
+<!-- generated:anomalies -->
+Each day, the effective rate of every provider × fee component × card segment (billed ÷ the day's processed volume, in basis points) is compared with its median over the previous 28 days: robust z = 0.6745 × (rate − median) ÷ MAD, the median absolute deviation, flagged when |z| > 4; when the MAD is 0, the mean absolute deviation takes its place (A10, A42). A fee component that no version of the provider's contract names is flagged on the first day it is billed, once the provider has 28 days of history (A43).
+
+| Anomaly | Days flagged | Explained by the contract | Explained by rule findings | Unexplained (anomaly findings) |
+|---|---:|---:|---:|---:|
+| Fee type no contract names, first billed | 1 | 0 | 0 | 1 |
+| Daily effective rate off its baseline | 152 | 85 | 67 | 0 |
+
+The generator planted 1 pattern that no rule describes (`config/generator.yml`, `truth.anomalies`):
+
+- X01: from 2026-05-15, Northgate Acquiring bills a line type no contract names, `NETWORK_ACCESS_FEE` (4 bps of every payment; 72,955 lines and EUR 2,130.13 by the end of the period). It was caught on 2026-05-15, the day it started, as a new fee component. The anomaly finding reads:
+
+  > northgate bills network_access_fee for the first time on 2026-05-15: 1,650 lines, 45.76 EUR (3.99 bps of the day's processed volume of 114,630.15 EUR). Baseline: 0 bps, it was never billed in the 134 days of history before, and no version of the northgate contract names it. Threshold: any amount of a fee type never seen before. Not explained: 45.76 EUR billed that neither the contract nor a rule finding accounts for.
+
+152 flagged days match no planted pattern: 85 are explained by the contract (every charge of the day equals its expected amount, as on a new markup tier or contract version), 67 by rule findings on the same charges, and 0 became anomaly findings.
+
+Anomaly findings are reported, not disputed: no clause backs them, so they stay out of the dispute queue and the dispute packs, and the evaluation reports them without a target.
+<!-- /generated -->
+
 ## Finance outputs
 
 `make report` writes the full set to `reports/` (not committed); a sample is committed under [`reports/examples/`](reports/examples/) and regenerated by every build:
 
 <!-- generated:examples -->
-- [Findings summary](reports/examples/findings_summary.md): overcharge and undercharge by provider, type and month; recoverable money against money past its deadline.
+- [Findings summary](reports/examples/findings_summary.md): overcharge and undercharge by provider, type and month; recoverable money against money past its deadline; anomalies, reported but not disputed.
 - [Monthly provider cost report](reports/examples/provider_costs.md): volume, fees by component, effective and markup rates by provider and card segment, change against the previous month.
 - [Provider comparison](reports/examples/provider_comparison.md): cost per card segment under each card contract.
 - [Follow one finding](reports/examples/follow_one_finding.md): one finding traced from the raw row to the finding.
@@ -390,9 +422,9 @@ The switch that would have saved the most: moving Brightpay's `eea_consumer` vol
 | Segment | Processed by | Volume | Billed | Under own contract | Rate | Under the other contract | Rate | Saving if switched |
 |---|---|---|---:|---:|---:|---:|---:|---:|
 | eea_consumer | Brightpay | 10,307,622.05 | 176,554.71 | 175,563.44 | 1.703% | 72,982.25 (Northgate Acquiring) | 0.708% | 102,581.19 |
-| eea_consumer | Northgate Acquiring | 15,339,887.65 | 114,804.12 | 109,259.17 | 0.712% | 268,640.64 (Brightpay) | 1.751% | -159,381.47 |
+| eea_consumer | Northgate Acquiring | 15,339,887.65 | 116,713.66 | 109,259.17 | 0.712% | 268,640.64 (Brightpay) | 1.751% | -159,381.47 |
 | other | Brightpay | 1,017,670.39 | 32,619.92 | 32,570.38 | 3.200% | 20,871.82 (Northgate Acquiring) | 2.051% | 11,698.56 |
-| other | Northgate Acquiring | 1,490,661.70 | 31,346.33 | 30,643.97 | 2.056% | 48,476.81 (Brightpay) | 3.252% | -17,832.84 |
+| other | Northgate Acquiring | 1,490,661.70 | 31,528.69 | 30,643.97 | 2.056% | 48,476.81 (Brightpay) | 3.252% | -17,832.84 |
 <!-- /generated -->
 
 ## Revenue side
@@ -400,7 +432,7 @@ The switch that would have saved the most: moving Brightpay's `eea_consumer` vol
 The same checks run on Fernway's own invoices: each client's pricing agreement (versioned YAML under `contracts/clients/`) is applied to the client's ledger events and compared with the invoice lines Fernway sent. Here the error costs Fernway, not the provider: a fee not billed, a promotion still applied after its end date, a discount above the agreed tier. The margin per client sets the billing against the provider costs of the client's own events. The full breakdown by client, type and month is in the [client report](reports/examples/client_report.md).
 
 <!-- generated:revenue-side -->
-From 2026-01 to 2026-06, Fernway billed its 40 clients EUR 1,049,178.87 against EUR 1,059,363.42 due under their pricing agreements: EUR 10,184.55 of revenue leakage (M09) across 126 invoice lines. After EUR 588,774.32 of provider fees and FX spread allocated to the clients' events, the margin is EUR 460,404.55 (M10), 1.635% of processed volume.
+From 2026-01 to 2026-06, Fernway billed its 40 clients EUR 1,049,178.87 against EUR 1,059,363.42 due under their pricing agreements: EUR 10,184.55 of revenue leakage (M09) across 126 invoice lines. After EUR 590,866.22 of provider fees and FX spread allocated to the clients' events, the margin is EUR 458,312.65 (M10), 1.628% of processed volume.
 
 Planted against found, from the evaluation (money as the planted difference, negative = billed too little):
 
@@ -420,7 +452,7 @@ All client findings by type:
 | L03 | FX markup not billed to the client | 1 | 6 | 4,463.26 | 0.00 |
 | L04 | Volume discount above the agreed tier | 21 | 24 | 2,317.31 | 0.00 |
 
-Cost allocation (A09, A32): each provider fee goes to the client whose ledger event it belongs to (EUR 473,081.51); monthly provider charges without an event, minimums and volume adjustments, are split by the client's share of the volume the term is computed on (EUR 3,943.33); the FX spread of the client's converted payouts (M08) is a cost too (EUR 111,749.48). Fees on provider lines after the ledger watermark (EUR 2,525.35) belong to the next billing cycle and are left out.
+Cost allocation (A09, A32): each provider fee goes to the client whose ledger event it belongs to (EUR 475,173.41); monthly provider charges without an event, minimums and volume adjustments, are split by the client's share of the volume the term is computed on (EUR 3,943.33); the FX spread of the client's converted payouts (M08) is a cost too (EUR 111,749.48). Fees on provider lines after the ledger watermark (EUR 2,563.58) belong to the next billing cycle and are left out.
 <!-- /generated -->
 
 ## Reproduce

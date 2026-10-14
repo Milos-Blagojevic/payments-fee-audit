@@ -13,7 +13,7 @@ from pathlib import Path
 import duckdb
 
 from feeaudit.reports import client, finance
-from feeaudit.reports.common import eur, label, md_table, rows
+from feeaudit.reports.common import dbt_var, eur, label, md_table, rows
 from feeaudit.verify import DBT_TABLE, REFERENCE_TABLE, compare
 
 BLOCK = re.compile(r"(<!-- generated:([\w-]+) -->\n)(.*?)(<!-- /generated -->)", re.DOTALL)
@@ -254,9 +254,54 @@ def block_evaluation(con) -> str:
     ])
 
 
+def _planted_anomaly(r: dict, names: dict) -> str:
+    cards = "every payment" if r["card_segment"] == "all" else f"every `{r['card_segment']}` payment"
+    text = (
+        f"{r['anomaly_id']}: from {r['start_date']}, {names.get(r['provider'], r['provider'])} bills a line type no "
+        f"contract names, `{r['line_type']}` ({r['rate_bps']} bps of {cards}; {r['planted_lines']:,} lines and "
+        f"EUR {eur(r['planted_minor'])} by the end of the period)."
+    )
+    if not r["detected"]:
+        return text + " It was not detected."
+    when = "the day it started" if r["days_to_detect"] == 0 else f"{r['days_to_detect']} days after it started"
+    kind = {"new_component": "new fee component", "rate_shift": "rate shift"}.get(r["anomaly_type"], r["anomaly_type"])
+    return (text + f" It was caught on {r['first_detected_day']}, {when}, as a {kind}. The anomaly finding "
+            f"reads:\n\n  > {r['explanation']}")
+
+
+def block_anomalies(con) -> str:
+    window, threshold = dbt_var("anomaly_window_days"), dbt_var("anomaly_z_threshold")
+    names = finance.contract_names(con)
+    report = rows(con, "select * from evaluation.anomaly_report order by category desc, anomaly_id, "
+                       "detected_anomaly_id")
+    planted = [r for r in report if r["category"] == "planted"]
+    other = [r for r in report if r["category"] == "not_planted"]
+    by_contract = sum(r["explained_by"] == "contract" for r in other)
+    by_rules = sum(r["explained_by"] == "rule_findings" for r in other)
+    findings = sum(bool(r["is_finding"]) for r in other)
+    return "\n\n".join([
+        f"Each day, the effective rate of every provider × fee component × card segment (billed ÷ the day's "
+        f"processed volume, in basis points) is compared with its median over the previous {window} days: robust "
+        f"z = 0.6745 × (rate − median) ÷ MAD, the median absolute deviation, flagged when |z| > {threshold}; when "
+        f"the MAD is 0, the mean absolute deviation takes its place (A10, A42). A fee component that no version of "
+        f"the provider's contract names is flagged on the first day it is billed, once the provider has {window} "
+        f"days of history (A43).",
+        finance.anomaly_counts_table(con),
+        f"The generator planted {len(planted)} pattern{'s' if len(planted) != 1 else ''} that no rule describes "
+        "(`config/generator.yml`, `truth.anomalies`):",
+        "\n".join(f"- {_planted_anomaly(r, names)}" for r in planted) or "- none",
+        f"{len(other):,} flagged days match no planted pattern: {by_contract:,} are explained by the contract (every "
+        f"charge of the day equals its expected amount, as on a new markup tier or contract version), {by_rules:,} "
+        f"by rule findings on the same charges, and {findings:,} became anomaly findings.",
+        "Anomaly findings are reported, not disputed: no clause backs them, so they stay out of the dispute queue and "
+        "the dispute packs, and the evaluation reports them without a target.",
+    ])
+
+
 EXAMPLES = [
     ("findings_summary.md", "Findings summary", "overcharge and undercharge by provider, type and month; "
-                                                "recoverable money against money past its deadline"),
+                                                "recoverable money against money past its deadline; anomalies, "
+                                                "reported but not disputed"),
     ("provider_costs.md", "Monthly provider cost report", "volume, fees by component, effective and markup rates "
                                                           "by provider and card segment, change against the "
                                                           "previous month"),
@@ -305,6 +350,7 @@ def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
         "noise": block_noise(con),
         "findings-summary": finance.findings_type_table(con),
         "evaluation": block_evaluation(con),
+        "anomalies": block_anomalies(con),
         "examples": block_examples(con, finance.example_pack(con)),
         "revenue-side": block_revenue_side(con),
     }

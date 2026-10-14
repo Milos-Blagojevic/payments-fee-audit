@@ -33,6 +33,8 @@ TYPE_LABELS = {
     "volume_discount_too_high": "Volume discount above the agreed tier",
     "rounding": "Rounding (one cent, other rounding mode)",
     "fee_mismatch": "Difference no rule explains",
+    "new_component": "Fee type no contract names, first billed",
+    "rate_shift": "Daily effective rate off its baseline",
 }
 
 
@@ -99,5 +101,9 @@ def rows(con: duckdb.DuckDBPyConnection, sql: str, params: list | None = None) -
     return [dict(zip(names, r)) for r in cursor.fetchall()]
 
 
+def dbt_var(name: str):
+    return yaml.safe_load(DBT_PROJECT.read_text())["vars"][name]
+
+
 def as_of_date() -> str:
-    return str(yaml.safe_load(DBT_PROJECT.read_text())["vars"]["as_of_date"])
+    return str(dbt_var("as_of_date"))

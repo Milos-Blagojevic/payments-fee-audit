@@ -6,7 +6,7 @@ from decimal import ROUND_HALF_EVEN, Decimal
 
 import duckdb
 
-from feeaudit.reports.common import csv_text, eur, label, md_table, month, pct_change, rate_pct, rows
+from feeaudit.reports.common import csv_text, dbt_var, eur, label, md_table, month, pct_change, rate_pct, rows
 
 CARD_SEGMENTS = ("eea_consumer", "other")
 
@@ -297,6 +297,7 @@ def findings_summary(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, st
               eur(q["recoverable_minor"]), eur(q["undercharge_minor"])] for q in queue],
             "llllrlrrrr",
         ),
+        anomalies_section(con),
     ])
     csv_out = csv_text(
         ["provider", "month", "finding_type", "direction", "findings", "difference_minor"],
@@ -304,6 +305,83 @@ def findings_summary(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, st
          for r in detail],
     )
     return {"findings_summary.md": md, "findings_summary.csv": csv_out}
+
+
+# Anomalies (spec section 10): reported with the findings, never disputed ---------------------------------------
+
+
+def anomaly_counts(con: duckdb.DuckDBPyConnection) -> list[dict]:
+    """fct_anomalies per type: days flagged and how many the contract or rule findings already explain."""
+    return rows(
+        con,
+        """
+        select anomaly_type, count(*) as anomalies,
+            count(*) filter (where explained_by = 'contract') as by_contract,
+            count(*) filter (where explained_by = 'rule_findings') as by_rules,
+            count(*) filter (where is_finding) as findings
+        from main.fct_anomalies
+        group by 1 order by 1
+        """,
+    )
+
+
+def anomaly_counts_table(con: duckdb.DuckDBPyConnection) -> str:
+    return md_table(
+        ["Anomaly", "Days flagged", "Explained by the contract", "Explained by rule findings",
+         "Unexplained (anomaly findings)"],
+        [[label(r["anomaly_type"]), f"{r['anomalies']:,}", f"{r['by_contract']:,}", f"{r['by_rules']:,}",
+          f"{r['findings']:,}"] for r in anomaly_counts(con)],
+        "lrrrr",
+    )
+
+
+def anomaly_findings(con: duckdb.DuckDBPyConnection) -> list[dict]:
+    """The findings with method = 'anomaly', with the fct_anomalies row behind each."""
+    return rows(
+        con,
+        """
+        select f.finding_id, f.counterparty as provider, f.finding_type, f.component, a.card_segment, a.day,
+            a.observed_rate_bps, a.baseline_rate_bps, f.billed_minor, f.difference_minor, a.line_count as lines,
+            f.invoice_id, f.formula
+        from main.fct_findings as f
+        inner join main.fct_anomalies as a
+            on a.is_finding and a.provider = f.counterparty and a.component = f.component
+            and a.anomaly_type = f.finding_type and a.unexplained_line_ids = f.line_ids
+        where f.method = 'anomaly'
+        order by a.day, f.counterparty, f.component, a.card_segment
+        """,
+    )
+
+
+def bps_text(value) -> str:
+    return "" if value is None else f"{Decimal(value).quantize(Decimal('0.01'), ROUND_HALF_EVEN)} bps"
+
+
+def anomalies_section(con: duckdb.DuckDBPyConnection) -> str:
+    names = contract_names(con)
+    found = anomaly_findings(con)
+    parts = [
+        "## Anomalies (not disputed)",
+        "Anomaly detection (`fct_anomalies`) flags billing patterns no rule describes: a day whose effective rate of "
+        "a provider × fee component × card segment is far from its median over the previous "
+        f"{dbt_var('anomaly_window_days')} days (robust z-score above {dbt_var('anomaly_z_threshold')}), and a fee "
+        "type no contract names on the first day it is billed. A flagged day that the contract or the rule findings "
+        "above already explain needs nothing more; the rest are anomaly findings (`method = 'anomaly'` in "
+        "`fct_findings`). They are leads to take up with the provider, not claims under a clause: they are not in "
+        "the totals above, the dispute queue or the dispute packs.",
+        anomaly_counts_table(con),
+    ]
+    if not found:
+        return "\n\n".join(parts + ["No flagged day is left unexplained."])
+    parts.append(md_table(
+        ["Day", "Provider", "Component", "Cards", "Anomaly", "Observed", "Baseline", "Billed", "Lines", "Invoice"],
+        [[str(r["day"]), names.get(r["provider"], r["provider"]), f"`{r['component']}`", r["card_segment"],
+          label(r["finding_type"]), bps_text(r["observed_rate_bps"]), bps_text(r["baseline_rate_bps"]),
+          eur(r["billed_minor"]), f"{r['lines']:,}", r["invoice_id"] or ""] for r in found],
+        "lllllrrrrl",
+    ))
+    parts.append("\n".join(f"- {r['day']}, {names.get(r['provider'], r['provider'])}: {r['formula']}" for r in found))
+    return "\n\n".join(parts)
 
 
 # 3. Dispute packs ---------------------------------------------------------------------------------------------

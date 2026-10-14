@@ -68,6 +68,38 @@ def test_letter_cites_every_breached_clause(con, packs):
             assert text in letter
 
 
+def test_dispute_packs_never_include_anomaly_findings(con, packs):
+    anomaly_ids = {r[0] for r in con.execute(
+        "select finding_id from main.fct_findings where method = 'anomaly'").fetchall()}
+    assert anomaly_ids  # the default world plants one anomaly that becomes a finding
+    pack_ids = {r["finding_id"] for q in finance.dispute_queue(con)
+                for r in _pack_rows(packs, f"dispute_packs/{q['provider']}/{q['dispute_queue_id']}")}
+    assert pack_ids and not pack_ids & anomaly_ids
+    methods = {r[0] for r in con.execute(
+        f"select distinct method from main.fct_findings where finding_id in ({', '.join('?' for _ in pack_ids)})",
+        sorted(pack_ids)).fetchall()}
+    assert methods == {"rule"}
+
+
+def test_findings_summary_keeps_anomalies_apart(con):
+    md = finance.findings_summary(con, AS_OF)["findings_summary.md"]
+    rules, anomalies = md.split("## Anomalies (not disputed)")
+    found = finance.anomaly_findings(con)
+    assert found and all(r["invoice_id"] in anomalies for r in found)
+    assert "network_access_fee" not in rules and "network_access_fee" in anomalies
+    rule_count = con.execute(
+        "select count(*) from main.fct_findings where method = 'rule' and finding_type <> 'rounding'").fetchone()[0]
+    assert finance.findings_overview(con)["findings"] == rule_count
+    assert sum(r["findings"] for r in finance.findings_by_type(con)) == rule_count
+
+
+def test_readme_anomaly_block_reports_the_planted_anomaly(con):
+    block = readme.block_anomalies(con)
+    for r in con.execute("select anomaly_id, first_detected_day from evaluation.anomaly_report "
+                         "where category = 'planted' and detected").fetchall():
+        assert f"{r[0]}: from" in block and f"caught on {r[1]}" in block
+
+
 def test_follow_one_finding_agrees_with_fct_findings(con):
     t = trace.trace(con)
     f = t["finding"]

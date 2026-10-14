@@ -21,6 +21,13 @@ tiers as (
     select * from {{ ref('int_contract_tiers') }}
 ),
 
+-- Fee components that some version of the provider's contract names (A41).
+contract_components as (
+    select distinct v.provider, unnest(t.components) as component
+    from terms as t
+    inner join versions as v on v.contract_version_id = t.contract_version_id
+),
+
 fx as (
     select pair, hour_start_utc, {{ micros('mid') }} as mid_micros, mid
     from {{ ref('stg_fx__mid_hourly') }}
@@ -65,7 +72,8 @@ billed as (
         string_agg(source_file || ':' || source_row, '; ' order by line_id) as line_evidence,
         any_value(fx_rate_applied) as fx_rate_applied,
         any_value(rate_timestamp_utc) as rate_timestamp_utc,
-        any_value(event_timestamp_utc) as line_event_timestamp_utc
+        any_value(event_timestamp_utc) as line_event_timestamp_utc,
+        any_value(billed_card_segment) as billed_card_segment
     from lines
     where status = 'matched'
     group by all
@@ -90,8 +98,10 @@ compared as (
         coalesce(e.provider, b.provider) as provider,
         coalesce(e.month, b.event_month) as month,
         coalesce(e.component, b.component) as component,
-        e.contract_id,
-        e.contract_version,
+        -- A billed charge with no expectation (a component no contract term names) is read under the contract
+        -- version in force at its event time and takes the card segment it was billed with.
+        coalesce(e.contract_id, bv.contract_id) as contract_id,
+        coalesce(e.contract_version, bv.contract_version) as contract_version,
         e.clause,
         coalesce(e.expected_minor, 0) as expected_minor,
         coalesce(b.billed_minor, 0) as billed_minor,
@@ -100,9 +110,13 @@ compared as (
         e.basis_minor,
         e.rate_bps,
         e.tier_no,
-        e.card_segment,
-        e.formula,
-        e.evidence as expected_evidence,
+        coalesce(e.card_segment, b.billed_card_segment) as card_segment,
+        coalesce(
+            e.formula,
+            b.component || ' is named by no clause of ' || bv.contract_id || ' v' || bv.contract_version
+                || ': no contractual amount (0.00 EUR)'
+        ) as formula,
+        coalesce(e.evidence, bv.source_file) as expected_evidence,
         coalesce(b.line_ids, []::varchar[]) as line_ids,
         b.line_evidence,
         coalesce(b.statement_month, s.statement_month, coalesce(e.month, b.event_month)) as statement_month,
@@ -123,6 +137,11 @@ compared as (
     ) as e
     full outer join billed as b on b.join_key = e.join_key
     left join event_statements as s on s.event_id = coalesce(e.event_id, b.event_id)
+    left join versions as bv
+        on e.expected_charge_id is null
+        and bv.provider = b.provider
+        and coalesce(cast({{ local_from_utc('b.line_event_timestamp_utc', 'bv.timezone') }} as date), b.event_month)
+            between bv.effective_from and coalesce(bv.effective_to, date '9999-12-31')
 ),
 
 -- Lines without a ledger counterpart: expected 0 under the contract version in force at the line's event time.
@@ -202,12 +221,14 @@ keyed as (
         case when r.component = 'markup' then r.contract_id || ' v' || v.previous_contract_version || ' §' || r.clause end
             as previous_markup_term_id,
         case when r.component = 'fx_conversion' then 'EUR' || e.currency end as fx_pair,
-        case when r.component = 'fx_conversion' then date_trunc('hour', r.event_timestamp_utc) end as execution_hour_utc
+        case when r.component = 'fx_conversion' then date_trunc('hour', r.event_timestamp_utc) end as execution_hour_utc,
+        cc.component is not null as component_has_term
     from rows as r
     left join versions as v on v.contract_id = r.contract_id and v.contract_version = r.contract_version
     left join {{ ref('int_provider_months') }} as m on m.provider = r.provider and m.provider_month = r.month
     left join last_statement as ls on ls.provider = r.provider
     left join ledger_events as e on e.event_id = r.event_id
+    left join contract_components as cc on cc.provider = r.provider and cc.component = r.component
 ),
 
 -- Alternative readings the classification compares the billed amount with.
@@ -293,6 +314,8 @@ classified as (
                     when wrong_hour_expected_minor is null and billed_minor > expected_minor
                         then 'fx_spread_above_cap'
                 end
+            -- A component no contract term names is outside every rule: the anomaly model looks at it (A41).
+            when not component_has_term then null
             when billed_minor = expected_minor then null
             when reads_as_stale_rate and reads_as_first_tier
                 then case
@@ -339,6 +362,7 @@ select
     currency,
     other_rounding_minor,
     finding_type,
+    component_has_term,
     -- The amount the finding is measured against: the rescaled debit for D12, the expected charge otherwise.
     case when finding_type = 'fx_rate_wrong_hour' then wrong_hour_expected_minor else expected_minor end
         as finding_expected_minor,

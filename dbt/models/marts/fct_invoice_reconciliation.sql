@@ -35,6 +35,7 @@ statement_findings as (
         coalesce(sum(difference_minor) filter (where finding_type <> 'rounding'), 0) as findings_total_minor,
         coalesce(sum(difference_minor) filter (where finding_type = 'rounding'), 0) as rounding_total_minor
     from {{ ref('fct_findings') }}
+    where method = 'rule'
     group by counterparty, statement_month
 ),
 

@@ -1,6 +1,8 @@
--- Rule findings: every compared charge whose billed amount differs from the contract by at least one minor unit
--- and that a rule classifies (data contract section 5). The retroactive-tier pattern (D02) is one finding per
--- provider × month; every other finding is one line or event × component.
+-- Findings, the single findings table. Rule findings: every compared charge whose billed amount differs from the
+-- contract by at least one minor unit and that a rule classifies (data contract section 5). The retroactive-tier
+-- pattern (D02) is one finding per provider × month; every other rule finding is one line or event × component.
+-- Anomaly findings (`method = 'anomaly'`): the fct_anomalies rows that neither a rule finding nor the contract
+-- explains, one per provider × component × card segment × day (A44).
 with comparison as (
     select
         *,
@@ -79,12 +81,49 @@ findings as (
     select * from line_findings
     union all by name
     select * from tier_findings
+),
+
+anomaly_findings as (
+    select
+        a.anomaly_id,
+        a.provider,
+        a.anomaly_type as finding_type,
+        a.month,
+        cast(null as varchar) as event_id,
+        a.unexplained_line_ids as line_ids,
+        a.component,
+        v.contract_id,
+        v.contract_version,
+        t.clause,
+        a.baseline_minor as expected_minor,
+        a.billed_minor,
+        a.billed_minor - a.baseline_minor as difference_minor,
+        'EUR' as currency,
+        a.explanation as formula,
+        len(a.unexplained_line_ids) || ' ' || upper(a.component) || ' lines in ' || a.unexplained_source_files
+            || '; ledger payments of '
+            || strftime(a.day, '%Y-%m-%d') || ' (processed volume); ' || v.source_file as evidence,
+        a.unexplained_statement_month as statement_month,
+        v.dispute_window_days,
+        'anomaly' as method
+    from {{ ref('fct_anomalies') }} as a
+    left join {{ ref('int_provider_contract_versions') }} as v
+        on v.provider = a.provider and a.day between v.effective_from and coalesce(v.effective_to, date '9999-12-31')
+    left join {{ ref('stg_contracts__contract_terms') }} as t
+        on t.contract_version_id = v.contract_version_id and list_contains(t.components, a.component)
+    where a.is_finding and abs(a.billed_minor - a.baseline_minor) >= 1
+),
+
+all_findings as (
+    select *, 'rule' as method, cast(null as varchar) as anomaly_id from findings
+    union all by name
+    select * from anomaly_findings
 )
 
 select
     md5(concat_ws(
-        '|', 'rule', 'provider', f.provider, f.finding_type, strftime(f.month, '%Y-%m'), coalesce(f.event_id, ''),
-        f.component, array_to_string(f.line_ids, ',')
+        '|', f.method, 'provider', f.provider, f.finding_type, strftime(f.month, '%Y-%m'),
+        coalesce(f.event_id, f.anomaly_id, ''), f.component, array_to_string(f.line_ids, ',')
     )) as finding_id,
     'provider' as party,
     f.provider as counterparty,
@@ -108,7 +147,7 @@ select
     i.invoice_date,
     cast(i.invoice_date + f.dispute_window_days as date) as dispute_deadline,
     cast(i.invoice_date + f.dispute_window_days as date) - cast('{{ var("as_of_date") }}' as date) as days_left,
-    'rule' as method
-from findings as f
+    f.method
+from all_findings as f
 left join {{ ref('int_provider_invoices') }} as i
     on i.provider = f.provider and i.statement_month = f.statement_month

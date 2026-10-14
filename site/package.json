@@ -1,0 +1,25 @@
+{
+  "name": "payments-fee-audit-site",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Report site for payments-fee-audit (synthetic data).",
+  "type": "module",
+  "scripts": {
+    "sources": "evidence sources --strict",
+    "build": "evidence build:strict",
+    "dev": "evidence dev",
+    "preview": "evidence preview"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@evidence-dev/core-components": "5.4.2",
+    "@evidence-dev/duckdb": "2.0.1",
+    "@evidence-dev/evidence": "40.1.8",
+    "typescript": "5.4.2"
+  },
+  "overrides": {
+    "@duckdb/node-api": "1.5.6-r.1"
+  }
+}

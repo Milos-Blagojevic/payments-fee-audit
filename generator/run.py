@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from generator import billing, client_billing, discrepancies, exports
+from generator import anomalies, billing, client_billing, discrepancies, exports
 from generator.billing import CHARGEBACK, PAYMENT, REFUND
 from generator.common import month_str, write_csv
 from generator.ledger import build_fx, build_payments, build_payouts, build_refunds_chargebacks
@@ -59,6 +59,7 @@ def generate(cfg, out=REPO, contracts_dir=REPO / "contracts", interchange_path=R
     discrepancies.plant_northgate(cfg, ng, ng_info)
     discrepancies.plant_brightpay(cfg, bp, bp_info)
     discrepancies.plant_kestrel(cfg, ks, ks_info, fx)
+    anomalies.plant_northgate(cfg, ng, ng_info)  # after every D plant, so that no D draw changes
 
     unique_key = {
         PAYMENT: unique_fallback_key(pay["client"], pay["amount"], pay["ts"]),
@@ -86,16 +87,18 @@ def generate(cfg, out=REPO, contracts_dir=REPO / "contracts", interchange_path=R
         truth.append((ks["truth"][i], "kestrel", labels[ks["month"][i]], ks_events[i], [ks_ids[i]],
                       int(ks["t_correct"][i]), int(ks["t_billed"][i])))
     truth.sort(key=lambda r: (r[0], r[1], r[2], r[3], r[4]))
-    _write_truth(cfg, out, truth, clients["leakage"], noise.rows)
+    anomaly_truth = anomalies.truth_rows(ng, ng_ids, ng_info)
+    _write_truth(cfg, out, truth, clients["leakage"], noise.rows, anomaly_truth)
     return {
         "cfg": cfg, "world": world, "payments": pay, "refunds": refunds, "chargebacks": chargebacks, "payouts": payouts,
         "phantom": phantom, "northgate": ng, "northgate_info": ng_info, "brightpay": bp, "brightpay_info": bp_info,
         "kestrel": ks, "months": labels, "totals": {"northgate": ng_totals, "brightpay": bp_totals, "kestrel": ks_totals},
         "invoices": invoices, "clients": clients, "truth": truth, "noise": noise.rows,
+        "anomalies": anomaly_truth,
     }
 
 
-def _write_truth(cfg, out, truth, leakage, noise_rows):
+def _write_truth(cfg, out, truth, leakage, noise_rows, anomaly_rows):
     base = out / "data/truth"
     counters = {}
     disc = []
@@ -113,5 +116,8 @@ def _write_truth(cfg, out, truth, leakage, noise_rows):
     rows = [(t, f, "" if r is None else r, line, ev) for t, f, r, line, ev in noise_rows]
     write_csv(base / "noise_events.csv", ["truth_id", "source_file", "source_row", "line_id", "event_id"],
               list(zip(*rows)) if rows else [[]] * 5)
+    write_csv(base / "anomalies.csv",
+              ["anomaly_id", "provider", "component", "line_type", "card_segment", "start_date", "rate_bps", "lines",
+               "billed_minor", "currency"], list(zip(*anomaly_rows)) if anomaly_rows else [[]] * 10)
     params = _flatten("", cfg, [])
     write_csv(base / "parameters.csv", ["parameter", "value"], list(zip(*params)))

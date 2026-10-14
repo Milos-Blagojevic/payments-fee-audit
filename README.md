@@ -469,7 +469,7 @@ make test
 
 ### Report site
 
-An [Evidence](https://evidence.dev) site in `site/` presents the findings, dispute queue, provider costs, provider comparison, FX conversions and evaluation from the warehouse. Requires Node.js 20 or later and a warehouse built by `make all`.
+An [Evidence](https://evidence.dev) site in `site/` presents the provider fee findings (rule and anomaly), dispute queue, provider costs, provider comparison, FX conversions, client billing leakage and margin, anomalies and the evaluation from the warehouse. Requires Node.js 20 or later and a warehouse built by `make all`.
 
 ```bash
 make site                 # npm ci, extract the marts to site/sources, build the static site into site/build

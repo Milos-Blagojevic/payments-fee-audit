@@ -5,7 +5,7 @@ sidebar_position: 1
 
 Fernway is a fictional payments company. Every number on this site comes from synthetic, seeded data with planted billing errors; contract rates are illustrative. Amounts are in EUR.
 
-This page summarises the provider fee findings: charges whose billed amount differs from the contract. Metric ids (M01–M08) refer to `METRICS.md`.
+This page summarises the provider fee rule findings: charges whose billed amount differs from the contract. Billing patterns no rule describes are on the [Anomalies](/anomalies) page, and Fernway's billing of its own clients on the [Clients](/clients) page. Metric ids (M01–M10) refer to `METRICS.md`.
 
 ```sql totals
 select
@@ -32,7 +32,7 @@ from fees.dispute_queue
 
 Overcharges are disputed with the provider; undercharges are reported but not disputed. An overcharge is recoverable while its dispute deadline is on or after the reference date <Value data={reference_date} column=as_of_date/>. Rounding differences are excluded from these totals.
 
-## Money found by finding type
+## Money found by rule finding type
 
 ```sql by_type
 select
@@ -41,6 +41,7 @@ select
     count(*) as findings,
     sum(difference_minor) / 100.0 as difference_eur
 from fees.findings
+where method = 'rule'
 group by all
 order by abs(sum(difference_minor)) desc
 ```
@@ -119,3 +120,5 @@ order by statement_month
 | M06 | Undercharge | this page, [Dispute queue](/dispute-queue) |
 | M07 | Recoverable | this page, [Dispute queue](/dispute-queue) |
 | M08 | FX spread cost | [FX conversions](/fx-conversions) |
+| M09 | Revenue leakage | [Clients](/clients) |
+| M10 | Client margin | [Clients](/clients) |

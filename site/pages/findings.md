@@ -3,7 +3,7 @@ title: Findings
 sidebar_position: 2
 ---
 
-Synthetic data; contract rates are illustrative. Each finding is one charge (or one provider × month for month-level terms) where the billed amount differs from the contract by at least one cent. The formula shows the expected calculation with the clause used; the evidence lists the source files and rows.
+Synthetic data; contract rates are illustrative. Provider fee findings come from two methods. A **rule** finding is one charge (or one provider × month for month-level terms) where the billed amount differs from the contract by at least one cent; the formula shows the expected calculation with the clause used. An **anomaly** finding is billed money no rule and no contract term explains, found by the [anomaly model](/anomalies); its formula states the baseline, the observed value and the threshold. The evidence lists the source files and rows. Overcharge, undercharge and the dispute queue count rule findings only. Client billing findings are on the [Clients](/clients) page.
 
 ```sql providers
 select distinct provider from fees.findings order by provider
@@ -16,6 +16,14 @@ select distinct finding_type from fees.findings order by finding_type
 ```sql months
 select distinct month_label from fees.findings order by month_label
 ```
+
+```sql methods
+select distinct method from fees.findings order by method desc
+```
+
+<Dropdown data={methods} name=method value=method title="Method" defaultValue="%">
+    <DropdownOption value="%" valueLabel="Rule and anomaly"/>
+</Dropdown>
 
 <Dropdown data={providers} name=provider value=provider title="Provider" defaultValue="%">
     <DropdownOption value="%" valueLabel="All providers"/>
@@ -32,6 +40,7 @@ select distinct month_label from fees.findings order by month_label
 ```sql filtered
 select
     finding_id,
+    method,
     provider,
     finding_type,
     month_label as month,
@@ -50,31 +59,37 @@ from fees.findings
 where provider like '${inputs.provider.value}'
   and finding_type like '${inputs.finding_type.value}'
   and month_label like '${inputs.month.value}'
+  and method like '${inputs.method.value}'
 order by abs(difference_minor) desc, finding_id
 ```
 
 ```sql filtered_summary
 select
-    count(*) as findings,
-    coalesce(sum(difference_eur) filter (where finding_type <> 'rounding' and difference_eur > 0), 0) as overcharge_eur,
-    coalesce(sum(difference_eur) filter (where finding_type <> 'rounding' and difference_eur < 0), 0) as undercharge_eur,
-    coalesce(sum(difference_eur) filter (where finding_type = 'rounding'), 0) as rounding_eur
+    count(*) filter (where method = 'rule') as rule_findings,
+    count(*) filter (where method = 'anomaly') as anomaly_findings,
+    coalesce(sum(difference_eur) filter (where method = 'rule' and finding_type <> 'rounding' and difference_eur > 0), 0) as overcharge_eur,
+    coalesce(sum(difference_eur) filter (where method = 'rule' and finding_type <> 'rounding' and difference_eur < 0), 0) as undercharge_eur,
+    coalesce(sum(difference_eur) filter (where method = 'rule' and finding_type = 'rounding'), 0) as rounding_eur,
+    coalesce(sum(difference_eur) filter (where method = 'anomaly'), 0) as anomaly_eur
 from ${filtered}
 ```
 
-<BigValue data={filtered_summary} value=findings fmt=num0 title="Findings"/>
-<BigValue data={filtered_summary} value=overcharge_eur fmt=eur2 title="Overcharge"/>
-<BigValue data={filtered_summary} value=undercharge_eur fmt=eur2 title="Undercharge"/>
+<BigValue data={filtered_summary} value=rule_findings fmt=num0 title="Rule findings"/>
+<BigValue data={filtered_summary} value=overcharge_eur fmt=eur2 title="Rule overcharge"/>
+<BigValue data={filtered_summary} value=undercharge_eur fmt=eur2 title="Rule undercharge"/>
 <BigValue data={filtered_summary} value=rounding_eur fmt=eur2 title="Rounding"/>
+<BigValue data={filtered_summary} value=anomaly_findings fmt=num0 title="Anomaly findings"/>
+<BigValue data={filtered_summary} value=anomaly_eur fmt=eur2 title="Anomaly amount"/>
 
 ```sql filtered_by_type
-select finding_type, direction, count(*) as findings, sum(difference_eur) as difference_eur
+select method, finding_type, direction, count(*) as findings, sum(difference_eur) as difference_eur
 from ${filtered}
 group by all
-order by abs(sum(difference_eur)) desc
+order by method desc, abs(sum(difference_eur)) desc
 ```
 
-<DataTable data={filtered_by_type} rows=all title="By finding type">
+<DataTable data={filtered_by_type} rows=all title="By method and finding type">
+    <Column id=method title="Method"/>
     <Column id=finding_type title="Finding type"/>
     <Column id=direction title="Direction"/>
     <Column id=findings title="Findings" fmt=num0 totalAgg=sum/>
@@ -83,22 +98,31 @@ order by abs(sum(difference_eur)) desc
 
 ## Findings
 
-Sorted by the size of the difference. Use the search box for a finding id, invoice or source file.
+Sorted by the size of the difference. Use the search box for a type, provider or source file.
 
 <DataTable data={filtered} rows=15 search=true wrapTitles=true downloadable=true>
     <Column id=month title="Month"/>
+    <Column id=method title="Method"/>
     <Column id=provider title="Provider"/>
     <Column id=finding_type title="Type"/>
+    <Column id=difference_eur title="Difference" fmt=eur2/>
+    <Column id=formula title="Formula" wrap=true/>
+    <Column id=evidence title="Evidence" wrap=true/>
+</DataTable>
+
+The same findings with their contract term, amounts, invoice and dispute deadline:
+
+<DataTable data={filtered} rows=15 search=true wrapTitles=true>
+    <Column id=finding_id title="Finding id"/>
+    <Column id=month title="Month"/>
+    <Column id=provider title="Provider"/>
     <Column id=component title="Component"/>
     <Column id=term title="Contract term"/>
     <Column id=expected_eur title="Contract" fmt=eur2/>
     <Column id=billed_eur title="Billed" fmt=eur2/>
     <Column id=difference_eur title="Difference" fmt=eur2/>
-    <Column id=formula title="Formula" wrap=true/>
-    <Column id=evidence title="Evidence" wrap=true/>
     <Column id=invoice_id title="Invoice"/>
     <Column id=dispute_deadline title="Dispute deadline"/>
-    <Column id=finding_id title="Finding id"/>
 </DataTable>
 
 ## Contract terms

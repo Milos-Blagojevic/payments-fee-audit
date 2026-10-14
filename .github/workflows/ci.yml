@@ -17,3 +17,4 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: make install
       - run: make all
+      - run: make test

@@ -1,0 +1,46 @@
+# Fernway pricing agreement with Cobble Market. Illustrative terms.
+contract_id: FW-CL027
+party: client
+counterparty: CL027
+name: Cobble Market
+version: 1
+effective_from: 2025-10-01
+currency: EUR
+timezone: UTC
+rounding: {mode: half_up, level: invoice_line}
+dispute_window_days: 30
+terms:
+  - clause: "2.1"
+    kind: payment_fee_by_segment
+    title: Fee per successful card payment by card segment
+    component: payment_fees
+    segments:
+      eea_consumer: {bps: 200, fixed_minor: 25}
+      other: {bps: 340, fixed_minor: 30}
+  - clause: "2.2"
+    kind: payout_fee_by_rail
+    title: Fee per payout by rail
+    rails:
+      sepa: {fixed_minor: 35}
+      faster_payments: {fixed_minor: 45}
+      swift: {fixed_minor: 1200}
+  - clause: "2.3"
+    kind: fx_markup
+    title: FX markup on the EUR equivalent at mid of each non-EUR payout
+    component: fx_markup
+    bps: 50
+  - clause: "3.1"
+    kind: platform_fee
+    title: Monthly platform fee
+    component: platform_fee
+    amount_minor: 19900
+  - clause: "4.1"
+    kind: volume_discount_tiered
+    title: Discount on the month's payment fees by monthly processed volume, applied to the whole volume
+    component: volume_discount
+    basis: monthly_processed_volume
+    tiering: retroactive
+    tiers:
+      - {up_to_minor: 15000000, discount_pct: 0}
+      - {up_to_minor: 40000000, discount_pct: 5}
+      - {up_to_minor: null, discount_pct: 10}

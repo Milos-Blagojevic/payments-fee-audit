@@ -1,0 +1,192 @@
+{
+  "name": "kestrel-v2",
+  "model": "claude-opus-5-5",
+  "timestamp": "2026-10-14T16:58:28Z",
+  "prompt_sha256": "2d705115ab2081d7989987901134a8bc8672638fccb95e7f50f23653f2635713",
+  "sources": {
+    "contracts/text/kestrel-v1.md": "57b65104f0f08c1357b0c35d6e1232569e58cb9c2719f29c40f3cbb2e04e9800",
+    "contracts/text/kestrel-v2.md": "b42e43e70c8f7ec12457bfd91af86298fdc5f5effef2691c9735ad6c173c6f98"
+  },
+  "usage": {
+    "input_tokens": 7479,
+    "output_tokens": 548,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "prices_usd_per_million_tokens": {
+    "input": "4",
+    "output": "20",
+    "cache_write": "5",
+    "cache_read": "0.2"
+  },
+  "cost_usd": "0.040876",
+  "estimate": {
+    "input_tokens": 7479,
+    "max_output_tokens": 16000,
+    "cost_usd": "0.349916"
+  },
+  "request": {
+    "model": "claude-opus-5-5",
+    "max_tokens": 16000,
+    "system": "You extract the fee terms of payment provider contracts into a structured contract file used by an automated fee audit. Return one JSON object that matches the given schema and describes one complete version of the contract.\n\nRules:\n- Return the complete version: every fee term in force under it. For an amendment letter you also receive the master agreement: apply the amendment to the master agreement and return the whole amended contract, including the terms the letter leaves unchanged.\n- version: the master agreement is version 1; Amendment No. N creates version N + 1. effective_from: the date from which this version applies, as an ISO 8601 date.\n- contract_id: the agreement reference. party: always \"provider\". name: the provider's trading name as written in the agreement. counterparty: the first word of that name in lower case (for example \"Acme Payments\" gives \"acme\").\n- Money: integer minor units (euro cents): EUR 0.04 is 4, EUR 2,500,000.00 is 250000000. Rates: integer basis points: 0.45% is 45.\n- Volume bands: one tier per band in increasing order; up_to_minor is the band's exclusive upper limit (\"less than\"), null for the open-ended last band.\n- timezone: the IANA time zone in which times and calendar months are determined. rounding.mode: half_up or half_even; rounding.level: transaction when each fee of each payment or payout is rounded on its own, invoice_line when each invoice line is rounded once. dispute_window_days: the number of days within which an invoice can be disputed.\n- Terms: one per clause that sets a price, fee, credit, discount, minimum or cap. clause: the clause number as a string, for example \"4.2\". title: a short description of the clause. Definitions, currency, rounding, invoicing and dispute clauses are not terms; they give the header fields.\n- Use only what the text states.\n\nTerm kinds (parameters_json: a JSON object with the parameters of the term's kind, exactly as the kind's parameter schema at the end defines them):\n- pass_through: interchange and scheme fees charged at cost against a reference table (reference: the table's designation).\n- markup_bps_tiered: a markup in basis points by band of monthly processed volume, where the band reached applies to the whole month's volume (tiering: retroactive).\n- per_transaction_fixed: a fixed amount per successful payment.\n- blended_rate: an all-in percentage plus a fixed amount per successful payment, by card segment (eea_consumer, other); failed_attempts: no_fee when declined or failed attempts are free.\n- volume_discount: a lower rate on the part of a card segment's monthly volume above a threshold (tiering: marginal), settled as a monthly adjustment; two tiers, the rate below and the rate above the threshold.\n- refund: a fee per refund, and whether the markup of the original payment is credited back.\n- chargeback_fee: a fee per chargeback.\n- monthly_minimum: a minimum amount of markup per month (applies_to: markup).\n- payout_fee: the fee per payout on one rail (sepa, faster_payments, swift, elixir): either fixed_minor, or bps of the EUR equivalent with min_minor and cap_minor.\n- fx_spread_cap: the maximum FX spread in basis points per payout currency against the hourly mid rate at the execution hour (benchmark: fx_mid_hourly, rate_time: execution_hour).\n\nParameter schema per kind:\n{\n \"blended_rate\": {\n  \"properties\": {\n   \"failed_attempts\": {\n    \"const\": \"no_fee\"\n   },\n   \"segments\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n     \"eea_consumer\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     },\n     \"other\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     }\n    },\n    \"required\": [\n     \"eea_consumer\",\n     \"other\"\n    ],\n    \"type\": \"object\"\n   }\n  },\n  \"required\": [\n   \"segments\",\n   \"failed_attempts\"\n  ],\n  \"type\": \"object\"\n },\n \"chargeback_fee\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"fx_spread_cap\": {\n  \"properties\": {\n   \"benchmark\": {\n    \"const\": \"fx_mid_hourly\"\n   },\n   \"caps_bps\": {\n    \"additionalProperties\": {\n     \"minimum\": 0,\n     \"type\": \"integer\"\n    },\n    \"minProperties\": 1,\n    \"propertyNames\": {\n     \"enum\": [\n      \"GBP\",\n      \"USD\",\n      \"CHF\",\n      \"PLN\"\n     ]\n    },\n    \"type\": \"object\"\n   },\n   \"rate_time\": {\n    \"const\": \"execution_hour\"\n   }\n  },\n  \"required\": [\n   \"benchmark\",\n   \"rate_time\",\n   \"caps_bps\"\n  ],\n  \"type\": \"object\"\n },\n \"markup_bps_tiered\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_processed_volume\"\n   },\n   \"tiering\": {\n    \"const\": \"retroactive\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"minItems\": 1,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"basis\",\n   \"tiering\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n },\n \"monthly_minimum\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"applies_to\": {\n    \"const\": \"markup\"\n   }\n  },\n  \"required\": [\n   \"applies_to\",\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"pass_through\": {\n  \"properties\": {\n   \"components\": {\n    \"items\": false,\n    \"minItems\": 2,\n    \"prefixItems\": [\n     {\n      \"const\": \"interchange\"\n     },\n     {\n      \"const\": \"scheme_fee\"\n     }\n    ],\n    \"type\": \"array\"\n   },\n   \"reference\": {\n    \"minLength\": 1,\n    \"type\": \"string\"\n   }\n  },\n  \"required\": [\n   \"components\",\n   \"reference\"\n  ],\n  \"type\": \"object\"\n },\n \"payout_fee\": {\n  \"oneOf\": [\n   {\n    \"not\": {\n     \"anyOf\": [\n      {\n       \"required\": [\n        \"bps\"\n       ]\n      },\n      {\n       \"required\": [\n        \"min_minor\"\n       ]\n      },\n      {\n       \"required\": [\n        \"cap_minor\"\n       ]\n      }\n     ]\n    },\n    \"required\": [\n     \"fixed_minor\"\n    ]\n   },\n   {\n    \"not\": {\n     \"required\": [\n      \"fixed_minor\"\n     ]\n    },\n    \"required\": [\n     \"bps\",\n     \"min_minor\",\n     \"cap_minor\"\n    ]\n   }\n  ],\n  \"properties\": {\n   \"bps\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"cap_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"fixed_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"min_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"rail\": {\n    \"enum\": [\n     \"sepa\",\n     \"faster_payments\",\n     \"swift\",\n     \"elixir\"\n    ]\n   }\n  },\n  \"required\": [\n   \"rail\"\n  ],\n  \"type\": \"object\"\n },\n \"per_transaction_fixed\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"refund\": {\n  \"properties\": {\n   \"credit_original_markup\": {\n    \"type\": \"boolean\"\n   },\n   \"fee_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"fee_minor\",\n   \"credit_original_markup\"\n  ],\n  \"type\": \"object\"\n },\n \"volume_discount\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_segment_volume\"\n   },\n   \"segment\": {\n    \"const\": \"eea_consumer\"\n   },\n   \"settlement\": {\n    \"const\": \"monthly_adjustment\"\n   },\n   \"tiering\": {\n    \"const\": \"marginal\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"maxItems\": 2,\n    \"minItems\": 2,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"segment\",\n   \"basis\",\n   \"tiering\",\n   \"settlement\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n }\n}\n",
+    "messages": [
+      {
+        "role": "user",
+        "content": "<document role=\"master_agreement\">\n# Payout and Foreign Exchange Services Agreement\n\n*Illustrative contract text for a fictional company. Not a real agreement and not legal advice.*\n\n**Agreement reference:** KP-2025-09\n\n**Dated:** 1 September 2025\n\n**Between:**\n\n1. **Kestrel Payouts** (the \"Provider\"); and\n2. **Fernway**, a marketplace payments company (the \"Customer\").\n\n## Background\n\n(A) The Provider executes payouts to bank accounts in several currencies and converts funds between currencies for that purpose.\n\n(B) The Customer pays out marketplace sellers' funds and wishes to use the Provider's services to do so.\n\nThe parties agree as follows.\n\n## 1. Definitions and interpretation\n\n**1.1 Definitions.** In this Agreement the following terms have the following meanings:\n\n- **\"Agreement\"** means this agreement, including its Schedules, as amended from time to time.\n- **\"Applied Rate\"** means the exchange rate actually applied by the Provider to convert euro into the currency of a Payout.\n- **\"Business Day\"** means a day other than a Saturday, a Sunday or a public holiday on which banks are open for general business.\n- **\"EUR Equivalent\"** means the amount of a Payout converted into euro at the Mid Rate for its Execution Hour.\n- **\"Execution Hour\"** means the clock hour (UTC) that contains the Execution Time.\n- **\"Execution Time\"** means the time at which the Provider executes a Payout.\n- **\"Invoice\"** means the monthly invoice issued by the Provider under clause 5.1.\n- **\"Mid Rate\"** means the mid-market exchange rate of a currency pair for a clock hour, as published for that hour in the hourly reference rate series maintained by the Provider and shown on its statements.\n- **\"Payout\"** means a transfer of funds by the Provider from the Customer's account to a bank account nominated by the Customer.\n- **\"Spread\"** means the amount by which the Applied Rate is less favourable to the Customer than the Mid Rate for the Execution Hour, expressed as a percentage of that Mid Rate.\n\n**1.2 Interpretation.** (a) Headings do not affect the interpretation of this Agreement. (b) References to clauses and Schedules are to clauses of and Schedules to this Agreement. (c) Unless stated otherwise, every reference to a time, a date or a calendar month is to Coordinated Universal Time (UTC).\n\n## 2. Payout fees\n\n**2.1 SEPA Payouts.** For each Payout in euro executed as a SEPA credit transfer (a \"SEPA Payout\") the Customer shall pay a fee of EUR 0.20 (twenty euro cents).\n\n**2.2 Faster Payments Payouts.** For each Payout in pounds sterling executed through the UK Faster Payments scheme (a \"Faster Payments Payout\") the Customer shall pay a fee of EUR 0.30 (thirty euro cents).\n\n**2.3 SWIFT Payouts.** For each Payout executed by international wire transfer through the SWIFT network (a \"SWIFT Payout\") the Customer shall pay a fee of 0.10% (ten basis points) of the EUR Equivalent of the Payout amount, subject to a minimum of EUR 8.00 (eight euro) and a maximum of EUR 40.00 (forty euro) per Payout.\n\n## 3. Calculation of fees\n\n**3.1 Currency.** All fees, charges and credits under this Agreement are calculated, invoiced and payable in euro (EUR), including fees on Payouts made in other currencies.\n\n**3.2 Calculation and rounding.** Each fee and each credit is calculated separately for each Payout and for each fee component, and is rounded to the nearest whole euro cent before fees are aggregated on the Invoice. An amount of exactly half a cent is rounded up, away from zero.\n\n## 4. Foreign exchange\n\n**4.1 Spread cap.** (a) For each Payout in a currency other than euro the Provider converts the euro debited from the Customer's account at the Applied Rate.\n\n(b) The Spread, measured against the Mid Rate for the Execution Hour of the Payout, shall not exceed the maximum shown below for the Payout currency:\n\n| Payout currency | Maximum Spread |\n|---|---|\n| pounds sterling (GBP) | 0.40% (forty basis points) |\n| US dollars (USD) | 0.40% (forty basis points) |\n| Swiss francs (CHF) | 0.40% (forty basis points) |\n| Polish zloty (PLN) | 0.90% (ninety basis points) |\n\n(c) Where the Spread exceeds that maximum, the Provider shall refund to the Customer the euro debited in excess of the amount the maximum Spread allows.\n\n**4.2 Rate disclosure.** For each Payout in a currency other than euro the Provider's statement shows the Applied Rate, the start of the hour whose Mid Rate was used and the euro debited.\n\n## 5. Invoicing and disputes\n\n**5.1 Monthly invoice.** Within ten Business Days after the end of each calendar month the Provider shall issue an Invoice for the fees of that month, together with a statement listing each Payout with its fee and the euro debited for it.\n\n**5.2 Payment.** Each Invoice is payable within fourteen days of its date. The Provider may instead deduct the amount of an Invoice from funds it holds for the Customer, provided the Invoice has been issued first.\n\n**5.3 Disputes.** The Customer may dispute an Invoice, or any fee or charge shown on it or on the accompanying statement, by written notice given within forty-five (45) days after the date of the Invoice. Any amount found to have been overcharged shall be credited on the next Invoice. Fees not disputed within that period are deemed accepted, except in the case of manifest error or fraud.\n\n## 6. Commencement and duration\n\n**6.1 Commencement.** This Agreement takes effect on 1 September 2025 (the \"Effective Date\") and applies to all Payouts executed on or after the Effective Date.\n\n**6.2 Duration.** This Agreement continues for an initial term of twenty-four months from the Effective Date and afterwards until terminated by either party on three months' written notice to the other.\n\n## 7. General\n\n**7.1 Entire agreement.** This Agreement is the entire agreement between the parties on its subject matter and supersedes any earlier arrangement.\n\n**7.2 Variation.** No variation of this Agreement is effective unless it is made in writing and signed by or on behalf of both parties, including by an amendment letter from the Provider countersigned by the Customer. An amendment letter states the date from which it applies.\n\n**7.3 Governing law.** This Agreement is governed by the laws of England and Wales. The courts of London have exclusive jurisdiction.\n\n## Signatures\n\nSigned for and on behalf of **Kestrel Payouts** (the Provider):\n\nName: ____________________  Title: ____________________  Date: __________\n\nSigned for and on behalf of **Fernway** (the Customer):\n\nName: ____________________  Title: ____________________  Date: __________\n</document>\n\n<document role=\"amendment_letter\">\n# Amendment No. 1 to the Payout and Foreign Exchange Services Agreement\n\n*Illustrative contract text for a fictional company. Not a real agreement and not legal advice.*\n\n**From:** Kestrel Payouts (the \"Provider\")\n\n**To:** Fernway (the \"Customer\")\n\n**Date:** 11 March 2026\n\n**Agreement reference:** KP-2025-09\n\nDear Sir or Madam,\n\n**Payout and Foreign Exchange Services Agreement dated 1 September 2025, reference KP-2025-09 (the \"Agreement\")**\n\nWe refer to the Agreement. Terms defined in the Agreement have the same meaning in this letter, and references to clauses are to clauses of the Agreement. This letter is Amendment No. 1 to the Agreement and is made under clause 7.2.\n\n1. **Amendment Effective Date.** The amendments in paragraph 2 take effect on 1 April 2026 (the \"Amendment Effective Date\") and apply to all Payouts executed on or after that date, determined in accordance with clause 1.2. Payouts executed before the Amendment Effective Date remain subject to the Agreement as it stood before this letter.\n\n2. **Amendments.** With effect from the Amendment Effective Date:\n\n(a) the following new clause 2.4 is inserted after clause 2.3:\n\n> **2.4 Elixir Payouts.** For each Payout in Polish zloty to a bank account in Poland executed through the Elixir domestic clearing system (an \"Elixir Payout\") the Customer shall pay a fee of EUR 0.30 (thirty euro cents).\n\n3. **Continuation.** Except as amended by this letter, the Agreement continues in full force and effect, and every other clause, including the fees, the rounding rules and the dispute period, applies unchanged. From the Amendment Effective Date, references to the Agreement are to the Agreement as amended by this letter.\n\n4. **Governing law.** This letter is governed by the law that governs the Agreement.\n\nPlease countersign this letter to confirm the Customer's agreement.\n\nYours faithfully,\n\nSigned for and on behalf of **Kestrel Payouts** (the Provider):\n\nName: ____________________  Title: ____________________  Date: __________\n\nSigned for and on behalf of **Fernway** (the Customer):\n\nName: ____________________  Title: ____________________  Date: __________\n</document>\n\nExtract the complete contract version that the amendment letter creates."
+      }
+    ],
+    "output_config": {
+      "effort": "high",
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "required": [
+            "contract_id",
+            "party",
+            "counterparty",
+            "name",
+            "version",
+            "effective_from",
+            "currency",
+            "timezone",
+            "rounding",
+            "dispute_window_days",
+            "terms"
+          ],
+          "properties": {
+            "contract_id": {
+              "type": "string"
+            },
+            "party": {
+              "const": "provider"
+            },
+            "counterparty": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "effective_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "format": "date"
+            },
+            "currency": {
+              "enum": [
+                "EUR"
+              ]
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "rounding": {
+              "type": "object",
+              "required": [
+                "mode",
+                "level"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "half_up",
+                    "half_even"
+                  ]
+                },
+                "level": {
+                  "enum": [
+                    "transaction",
+                    "invoice_line"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "dispute_window_days": {
+              "type": "integer"
+            },
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "clause": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "pass_through",
+                      "markup_bps_tiered",
+                      "per_transaction_fixed",
+                      "blended_rate",
+                      "volume_discount",
+                      "refund",
+                      "chargeback_fee",
+                      "monthly_minimum",
+                      "payout_fee",
+                      "fx_spread_cap"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "parameters_json": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "clause",
+                  "kind",
+                  "title",
+                  "parameters_json"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "response": {
+    "id": "msg_011Cg2V49HWkAbMuHdMDudsg",
+    "container": null,
+    "content": [
+      {
+        "citations": null,
+        "text": "{\"contract_id\":\"KP-2025-09\",\"party\":\"provider\",\"counterparty\":\"kestrel\",\"name\":\"Kestrel Payouts\",\"version\":2,\"effective_from\":\"2026-04-01\",\"currency\":\"EUR\",\"timezone\":\"UTC\",\"rounding\":{\"mode\":\"half_up\",\"level\":\"transaction\"},\"dispute_window_days\":45,\"terms\":[{\"clause\":\"2.1\",\"kind\":\"payout_fee\",\"title\":\"SEPA Payouts fee\",\"parameters_json\":\"{\\\"rail\\\":\\\"sepa\\\",\\\"fixed_minor\\\":20}\"},{\"clause\":\"2.2\",\"kind\":\"payout_fee\",\"title\":\"Faster Payments Payouts fee\",\"parameters_json\":\"{\\\"rail\\\":\\\"faster_payments\\\",\\\"fixed_minor\\\":30}\"},{\"clause\":\"2.3\",\"kind\":\"payout_fee\",\"title\":\"SWIFT Payouts fee\",\"parameters_json\":\"{\\\"rail\\\":\\\"swift\\\",\\\"bps\\\":10,\\\"min_minor\\\":800,\\\"cap_minor\\\":4000}\"},{\"clause\":\"2.4\",\"kind\":\"payout_fee\",\"title\":\"Elixir Payouts fee\",\"parameters_json\":\"{\\\"rail\\\":\\\"elixir\\\",\\\"fixed_minor\\\":30}\"},{\"clause\":\"4.1\",\"kind\":\"fx_spread_cap\",\"title\":\"FX spread cap\",\"parameters_json\":\"{\\\"benchmark\\\":\\\"fx_mid_hourly\\\",\\\"rate_time\\\":\\\"execution_hour\\\",\\\"caps_bps\\\":{\\\"GBP\\\":40,\\\"USD\\\":40,\\\"CHF\\\":40,\\\"PLN\\\":90}}\"}]}",
+        "type": "text"
+      }
+    ],
+    "diagnostics": null,
+    "model": "claude-opus-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "inference_geo": "global",
+      "input_tokens": 7479,
+      "output_tokens": 548,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "server_tool_use": null,
+      "service_tier": "standard"
+    }
+  },
+  "validation_errors": [],
+  "error": null
+}

@@ -1,0 +1,59 @@
+# Extracted by claude-opus-5-5 from contracts/text/northgate-v1.md on 2026-10-14T16:57:49Z.
+# NOT APPROVED: every term has approved: false, so feeaudit.contracts refuses this file. Review each term
+# against the text, set approved: true, then promote the file (docs/llm-extraction.md).
+contract_id: NG-2025-01
+party: provider
+counterparty: northgate
+name: Northgate Acquiring
+version: 1
+effective_from: 2025-07-01
+currency: EUR
+timezone: Europe/Berlin
+rounding:
+  mode: half_up
+  level: transaction
+dispute_window_days: 60
+terms:
+- clause: '3.1'
+  kind: pass_through
+  title: Interchange and scheme fees passed through at cost
+  approved: false
+  components:
+  - interchange
+  - scheme_fee
+  reference: interchange_table_v1
+- clause: '4.2'
+  kind: markup_bps_tiered
+  title: Markup by monthly processed volume band
+  approved: false
+  basis: monthly_processed_volume
+  tiering: retroactive
+  tiers:
+  - up_to_minor: 250000000
+    bps: 45
+  - up_to_minor: 800000000
+    bps: 35
+  - up_to_minor: null
+    bps: 28
+- clause: '4.3'
+  kind: per_transaction_fixed
+  title: Fixed fee per successful transaction
+  approved: false
+  amount_minor: 4
+- clause: '5.1'
+  kind: refund
+  title: Refund fee and markup credit
+  approved: false
+  fee_minor: 10
+  credit_original_markup: true
+- clause: '6.1'
+  kind: chargeback_fee
+  title: Chargeback handling fee
+  approved: false
+  amount_minor: 1500
+- clause: '7.4'
+  kind: monthly_minimum
+  title: Monthly minimum markup
+  approved: false
+  applies_to: markup
+  amount_minor: 250000

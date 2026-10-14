@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build verify eval report test all clean site
+.PHONY: install contracts data build verify eval extraction-score report test all clean site
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -36,7 +36,12 @@ report:
 test:
 	$(PYTHON) -m pytest
 
-all: clean contracts data build verify eval report
+# Score the committed LLM extractions (contracts/extracted/) against contracts/providers/; offline, never calls
+# the API. Writes evaluation.extraction_scores. The paid extraction itself is `python -m feeaudit.extraction extract`.
+extraction-score:
+	$(PYTHON) -m feeaudit.extraction score
+
+all: clean contracts data build verify eval extraction-score report
 
 # Evidence report site in site/build from the warehouse built by `make all` (Node >= 20; not part of `all`).
 # Starts from an empty build and Evidence cache so no stale data extract is published.

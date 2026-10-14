@@ -455,13 +455,37 @@ All client findings by type:
 Cost allocation (A09, A32): each provider fee goes to the client whose ledger event it belongs to (EUR 475,173.41); monthly provider charges without an event, minimums and volume adjustments, are split by the client's share of the volume the term is computed on (EUR 3,943.33); the FX spread of the client's converted payouts (M08) is a cost too (EUR 111,749.48). Fees on provider lines after the ledger watermark (EUR 2,563.58) belong to the next billing cycle and are left out.
 <!-- /generated -->
 
+## Contracts read by an LLM, behind an approval gate
+
+The YAML contracts above are written by hand. In practice terms arrive as PDFs and amendment letters, so `contracts/text/` holds every provider contract version rendered as legal prose (a master agreement per provider, amendments as letters that change one clause), and `python -m feeaudit.extraction extract` asks Claude to turn each into contract YAML under a JSON schema derived from `feeaudit/contract_schema.json`. Every extracted term is written with `approved: false`, and the contract loader refuses unapproved terms, so nothing a model produced reaches the engine until a person has reviewed it ([workflow](docs/llm-extraction.md)). Each call is recorded with its prompt hash, token usage and cost, and a spend ledger refuses any call that could take the total over the budget. The extraction is paid and not deterministic, so it never runs in `make all`; the build only scores the recorded output field by field against the hand-written files.
+
+<!-- generated:extraction -->
+5 recorded call(s) to `claude-opus-5-5` cost USD 0.215116 in total. Field accuracy against the hand-written contract files: 100.0% (160 of 160 fields).
+
+| Contract | Version | Fields correct | Accuracy |
+|---|---:|---:|---:|
+| BP-2025-07 | 1 | 31 / 31 | 100.0% |
+| KP-2025-09 | 1 | 29 / 29 | 100.0% |
+| KP-2025-09 | 2 | 32 / 32 | 100.0% |
+| NG-2025-01 | 1 | 34 / 34 | 100.0% |
+| NG-2025-01 | 2 | 34 / 34 | 100.0% |
+<!-- /generated -->
+
+## Limits and next steps
+
+- **Illustrative rates.** The interchange and scheme fee table and every contract are made up, realistic in shape and order of magnitude only. Real interchange depends on far more than scheme, card type and region.
+- **Synthetic benchmark.** The FX mid series is a seeded random walk standing in for a published reference rate; a real deployment would load the provider's stated benchmark.
+- **Planted errors are the errors we thought of.** Precision and recall are measured against what the generator planted. The anomaly model is there for what no rule describes, and it reports, rather than claims, money.
+- **Batch, not streaming.** Everything is recomputed from files after the month closes; checking charges as settlement lines arrive would shorten the time to dispute.
+- **One acquirer contract shape each.** Real contracts add scheme-specific markups, cross-border surcharges, VAT and minimum-term clauses that the term kinds here do not cover.
+
 ## Reproduce
 
 Requires Python 3.12.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-make all     # clean, contracts, data, build, verify, eval, report
+make all     # clean, contracts, data, build, verify, eval, extraction-score, report
 make test
 ```
 
@@ -487,6 +511,7 @@ cd site && npm run preview  # serve the build locally; or `npm run dev` for live
 | `feeaudit/reference/` | Python reference engine for the differential check (`make verify`) |
 | `feeaudit/evaluation/` | Scores the findings against the planted truth (`make eval`) |
 | `feeaudit/reports/` | Finance outputs, the README blocks and the headline chart (`make report`) |
+| `feeaudit/extraction/`, `contracts/text/`, `contracts/extracted/` | LLM contract extraction, the prose it reads and its recorded output (`make extraction-score`) |
 | `site/` | Evidence report site on the marts and the evaluation (`make site`) |
 | `docs/data-contract.md` | Binding semantics of every source, term and finding type |
 | `ASSUMPTIONS.md`, `METRICS.md` | Numbered assumptions and metric definitions |
@@ -504,4 +529,4 @@ cd site && npm run preview  # serve the build locally; or `npm run dev` for live
 | @evidence-dev/duckdb | 2.0.1 |
 | @duckdb/node-api | 1.5.6-r.1 |
 
-The full lock is in `requirements.txt` and `requirements-dev.txt`, and for the site in `site/package-lock.json`.
+The full lock is in `requirements.txt` and `requirements-dev.txt`, and for the site in `site/package-lock.json`. The optional LLM contract extraction (`docs/llm-extraction.md`) has its own lock, `requirements-llm.txt`, which the build, the tests and CI do not need.

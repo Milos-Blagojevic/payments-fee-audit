@@ -26,7 +26,11 @@ def _term(doc, kind):
     return next(t for t in doc["terms"] if t["kind"] == kind)
 
 
-@pytest.mark.parametrize("path", sorted(CONTRACTS.rglob("*.yml")), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path",
+    sorted(p for p in CONTRACTS.rglob("*.yml") if "extracted" not in p.relative_to(CONTRACTS).parts),
+    ids=lambda p: p.name,
+)
 def test_committed_file_validates(path):
     assert load_contract_file(path)["terms"]
 
@@ -176,3 +180,39 @@ def test_main_fails_on_bad_file(tmp_path, capsys):
 def test_main_loads_committed_contracts(tmp_path, capsys):
     assert main(["--contracts-dir", str(CONTRACTS), "--db", str(tmp_path / "f.duckdb")]) == 0
     assert "files" in capsys.readouterr().out
+
+
+def test_unapproved_term_rejected(tmp_path):
+    doc = _doc(NORTHGATE_V1)
+    _term(doc, "refund")["approved"] = True
+    _term(doc, "monthly_minimum")["approved"] = False
+    path = _write(tmp_path, "northgate-v1.yml", doc)
+    with pytest.raises(ContractError) as exc:
+        load_contract_file(path)
+    message = str(exc.value)
+    assert "northgate-v1.yml" in message and "clause 7.4 is not approved" in message
+    assert "clause 5.1" not in message
+
+
+def test_approved_term_accepted_and_not_a_parameter(tmp_path):
+    doc = _doc(NORTHGATE_V1)
+    for term in doc["terms"]:
+        term["approved"] = True
+    contracts = [load_contract_file(_write(tmp_path, "northgate-v1.yml", doc))]
+    contracts[0]["source_file"] = "northgate-v1.yml"
+    db = tmp_path / "fees.duckdb"
+    write_contracts(contracts, db)
+    with duckdb.connect(str(db)) as con:
+        keys = con.execute("SELECT DISTINCT unnest(json_keys(parameters)) FROM contracts.contract_terms").fetchall()
+    assert ("approved",) not in keys
+
+
+def test_extracted_directory_not_loaded(tmp_path):
+    _write(tmp_path, "northgate-v1.yml", _doc(NORTHGATE_V1))
+    (tmp_path / "extracted").mkdir()
+    unapproved = _doc(NORTHGATE_V1)
+    for term in unapproved["terms"]:
+        term["approved"] = False
+    _write(tmp_path / "extracted", "northgate-v1.yml", unapproved)
+    loaded = load_contracts(tmp_path)
+    assert [Path(c["source_file"]).resolve() for c in loaded] == [(tmp_path / "northgate-v1.yml").resolve()]

@@ -1,0 +1,196 @@
+{
+  "name": "brightpay-v1",
+  "model": "claude-opus-5-5",
+  "timestamp": "2026-10-14T16:58:13Z",
+  "prompt_sha256": "97c57db477122d2a67a9bd83a77705d11d69758a10fd375b344d26c4b05bff3c",
+  "sources": {
+    "contracts/text/brightpay-v1.md": "1ff05860533f41ef91e3ceef7443f33a019d26ff28740f12b480b6f8c91181df"
+  },
+  "usage": {
+    "input_tokens": 7009,
+    "output_tokens": 771,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "prices_usd_per_million_tokens": {
+    "input": "4",
+    "output": "20",
+    "cache_write": "5",
+    "cache_read": "0.2"
+  },
+  "cost_usd": "0.043456",
+  "estimate": {
+    "input_tokens": 7009,
+    "max_output_tokens": 16000,
+    "cost_usd": "0.348036"
+  },
+  "request": {
+    "model": "claude-opus-5-5",
+    "max_tokens": 16000,
+    "system": "You extract the fee terms of payment provider contracts into a structured contract file used by an automated fee audit. Return one JSON object that matches the given schema and describes one complete version of the contract.\n\nRules:\n- Return the complete version: every fee term in force under it. For an amendment letter you also receive the master agreement: apply the amendment to the master agreement and return the whole amended contract, including the terms the letter leaves unchanged.\n- version: the master agreement is version 1; Amendment No. N creates version N + 1. effective_from: the date from which this version applies, as an ISO 8601 date.\n- contract_id: the agreement reference. party: always \"provider\". name: the provider's trading name as written in the agreement. counterparty: the first word of that name in lower case (for example \"Acme Payments\" gives \"acme\").\n- Money: integer minor units (euro cents): EUR 0.04 is 4, EUR 2,500,000.00 is 250000000. Rates: integer basis points: 0.45% is 45.\n- Volume bands: one tier per band in increasing order; up_to_minor is the band's exclusive upper limit (\"less than\"), null for the open-ended last band.\n- timezone: the IANA time zone in which times and calendar months are determined. rounding.mode: half_up or half_even; rounding.level: transaction when each fee of each payment or payout is rounded on its own, invoice_line when each invoice line is rounded once. dispute_window_days: the number of days within which an invoice can be disputed.\n- Terms: one per clause that sets a price, fee, credit, discount, minimum or cap. clause: the clause number as a string, for example \"4.2\". title: a short description of the clause. Definitions, currency, rounding, invoicing and dispute clauses are not terms; they give the header fields.\n- Use only what the text states.\n\nTerm kinds (parameters_json: a JSON object with the parameters of the term's kind, exactly as the kind's parameter schema at the end defines them):\n- pass_through: interchange and scheme fees charged at cost against a reference table (reference: the table's designation).\n- markup_bps_tiered: a markup in basis points by band of monthly processed volume, where the band reached applies to the whole month's volume (tiering: retroactive).\n- per_transaction_fixed: a fixed amount per successful payment.\n- blended_rate: an all-in percentage plus a fixed amount per successful payment, by card segment (eea_consumer, other); failed_attempts: no_fee when declined or failed attempts are free.\n- volume_discount: a lower rate on the part of a card segment's monthly volume above a threshold (tiering: marginal), settled as a monthly adjustment; two tiers, the rate below and the rate above the threshold.\n- refund: a fee per refund, and whether the markup of the original payment is credited back.\n- chargeback_fee: a fee per chargeback.\n- monthly_minimum: a minimum amount of markup per month (applies_to: markup).\n- payout_fee: the fee per payout on one rail (sepa, faster_payments, swift, elixir): either fixed_minor, or bps of the EUR equivalent with min_minor and cap_minor.\n- fx_spread_cap: the maximum FX spread in basis points per payout currency against the hourly mid rate at the execution hour (benchmark: fx_mid_hourly, rate_time: execution_hour).\n\nParameter schema per kind:\n{\n \"blended_rate\": {\n  \"properties\": {\n   \"failed_attempts\": {\n    \"const\": \"no_fee\"\n   },\n   \"segments\": {\n    \"additionalProperties\": false,\n    \"properties\": {\n     \"eea_consumer\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     },\n     \"other\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n       \"bps\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       },\n       \"fixed_minor\": {\n        \"minimum\": 0,\n        \"type\": \"integer\"\n       }\n      },\n      \"required\": [\n       \"bps\",\n       \"fixed_minor\"\n      ],\n      \"type\": \"object\"\n     }\n    },\n    \"required\": [\n     \"eea_consumer\",\n     \"other\"\n    ],\n    \"type\": \"object\"\n   }\n  },\n  \"required\": [\n   \"segments\",\n   \"failed_attempts\"\n  ],\n  \"type\": \"object\"\n },\n \"chargeback_fee\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"fx_spread_cap\": {\n  \"properties\": {\n   \"benchmark\": {\n    \"const\": \"fx_mid_hourly\"\n   },\n   \"caps_bps\": {\n    \"additionalProperties\": {\n     \"minimum\": 0,\n     \"type\": \"integer\"\n    },\n    \"minProperties\": 1,\n    \"propertyNames\": {\n     \"enum\": [\n      \"GBP\",\n      \"USD\",\n      \"CHF\",\n      \"PLN\"\n     ]\n    },\n    \"type\": \"object\"\n   },\n   \"rate_time\": {\n    \"const\": \"execution_hour\"\n   }\n  },\n  \"required\": [\n   \"benchmark\",\n   \"rate_time\",\n   \"caps_bps\"\n  ],\n  \"type\": \"object\"\n },\n \"markup_bps_tiered\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_processed_volume\"\n   },\n   \"tiering\": {\n    \"const\": \"retroactive\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"minItems\": 1,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"basis\",\n   \"tiering\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n },\n \"monthly_minimum\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"applies_to\": {\n    \"const\": \"markup\"\n   }\n  },\n  \"required\": [\n   \"applies_to\",\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"pass_through\": {\n  \"properties\": {\n   \"components\": {\n    \"items\": false,\n    \"minItems\": 2,\n    \"prefixItems\": [\n     {\n      \"const\": \"interchange\"\n     },\n     {\n      \"const\": \"scheme_fee\"\n     }\n    ],\n    \"type\": \"array\"\n   },\n   \"reference\": {\n    \"minLength\": 1,\n    \"type\": \"string\"\n   }\n  },\n  \"required\": [\n   \"components\",\n   \"reference\"\n  ],\n  \"type\": \"object\"\n },\n \"payout_fee\": {\n  \"oneOf\": [\n   {\n    \"not\": {\n     \"anyOf\": [\n      {\n       \"required\": [\n        \"bps\"\n       ]\n      },\n      {\n       \"required\": [\n        \"min_minor\"\n       ]\n      },\n      {\n       \"required\": [\n        \"cap_minor\"\n       ]\n      }\n     ]\n    },\n    \"required\": [\n     \"fixed_minor\"\n    ]\n   },\n   {\n    \"not\": {\n     \"required\": [\n      \"fixed_minor\"\n     ]\n    },\n    \"required\": [\n     \"bps\",\n     \"min_minor\",\n     \"cap_minor\"\n    ]\n   }\n  ],\n  \"properties\": {\n   \"bps\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"cap_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"fixed_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"min_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   },\n   \"rail\": {\n    \"enum\": [\n     \"sepa\",\n     \"faster_payments\",\n     \"swift\",\n     \"elixir\"\n    ]\n   }\n  },\n  \"required\": [\n   \"rail\"\n  ],\n  \"type\": \"object\"\n },\n \"per_transaction_fixed\": {\n  \"properties\": {\n   \"amount_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"amount_minor\"\n  ],\n  \"type\": \"object\"\n },\n \"refund\": {\n  \"properties\": {\n   \"credit_original_markup\": {\n    \"type\": \"boolean\"\n   },\n   \"fee_minor\": {\n    \"minimum\": 0,\n    \"type\": \"integer\"\n   }\n  },\n  \"required\": [\n   \"fee_minor\",\n   \"credit_original_markup\"\n  ],\n  \"type\": \"object\"\n },\n \"volume_discount\": {\n  \"properties\": {\n   \"basis\": {\n    \"const\": \"monthly_segment_volume\"\n   },\n   \"segment\": {\n    \"const\": \"eea_consumer\"\n   },\n   \"settlement\": {\n    \"const\": \"monthly_adjustment\"\n   },\n   \"tiering\": {\n    \"const\": \"marginal\"\n   },\n   \"tiers\": {\n    \"items\": {\n     \"additionalProperties\": false,\n     \"properties\": {\n      \"bps\": {\n       \"minimum\": 0,\n       \"type\": \"integer\"\n      },\n      \"up_to_minor\": {\n       \"minimum\": 0,\n       \"type\": [\n        \"integer\",\n        \"null\"\n       ]\n      }\n     },\n     \"required\": [\n      \"up_to_minor\",\n      \"bps\"\n     ],\n     \"type\": \"object\"\n    },\n    \"maxItems\": 2,\n    \"minItems\": 2,\n    \"type\": \"array\"\n   }\n  },\n  \"required\": [\n   \"segment\",\n   \"basis\",\n   \"tiering\",\n   \"settlement\",\n   \"tiers\"\n  ],\n  \"type\": \"object\"\n }\n}\n",
+    "messages": [
+      {
+        "role": "user",
+        "content": "<document role=\"master_agreement\">\n# Payment Services Agreement\n\n*Illustrative contract text for a fictional company. Not a real agreement and not legal advice.*\n\n**Agreement reference:** BP-2025-07\n\n**Dated:** 1 July 2025\n\n**Between:**\n\n1. **Brightpay** (the \"PSP\"); and\n2. **Fernway**, a marketplace payments company (the \"Merchant\").\n\n## Background\n\n(A) The PSP provides online card payment services to merchants on blended pricing.\n\n(B) The Merchant operates an online marketplace and wishes to use the PSP's services for card payments made by buyers on that marketplace.\n\nThe parties agree as follows.\n\n## 1. Definitions and interpretation\n\n**1.1 Definitions.** In this Agreement the following terms have the following meanings:\n\n- **\"Agreement\"** means this agreement, including its Schedules, as amended from time to time.\n- **\"Business Day\"** means a day other than a Saturday, a Sunday or a public holiday on which banks are open for general business.\n- **\"Card Scheme\"** means Visa or Mastercard.\n- **\"Chargeback\"** means the reversal of a Successful Transaction initiated by the card issuer under the Card Scheme rules.\n- **\"Declined or Failed Attempt\"** means a Transaction that is declined by the card issuer or fails for technical reasons and is not captured.\n- **\"EEA Consumer Card\"** means a consumer debit or consumer credit card used in a domestic or intra-EEA Transaction.\n- **\"EEA Consumer Volume\"** means the aggregate amount of all Successful Transactions made with EEA Consumer Cards in a calendar month.\n- **\"Invoice\"** means the monthly invoice issued by the PSP under clause 4.1.\n- **\"Other Card\"** means any card that is not an EEA Consumer Card, including every commercial card.\n- **\"Refund\"** means the reversal, at the Merchant's request, of the whole amount of a Successful Transaction.\n- **\"Successful Transaction\"** means a Transaction that is authorised by the card issuer and captured.\n- **\"Transaction\"** means a payment by card to the Merchant submitted to the PSP for authorisation.\n\n**1.2 Interpretation.** (a) Headings do not affect the interpretation of this Agreement. (b) References to clauses and Schedules are to clauses of and Schedules to this Agreement. (c) Unless stated otherwise, every reference to a time, a date or a calendar month is to Coordinated Universal Time (UTC).\n\n## 2. Commencement and duration\n\n**2.1 Commencement.** This Agreement takes effect on 1 July 2025 (the \"Effective Date\") and applies to all Transactions made on or after the Effective Date.\n\n**2.2 Duration.** This Agreement continues for an initial term of twenty-four months from the Effective Date and afterwards until terminated by either party on three months' written notice to the other.\n\n## 3. Service fees\n\n**3.1 Service Fee.** (a) For each Successful Transaction the Merchant shall pay a single all-inclusive service fee (the \"Service Fee\") made of a percentage of the Transaction amount plus a fixed amount, subject to the volume discount in clause 3.4:\n\n| Card | Percentage of the Transaction amount | Fixed amount per Transaction |\n|---|---|---|\n| EEA Consumer Cards | 1.40% (one hundred and forty basis points) | EUR 0.25 (twenty-five euro cents) |\n| Other Cards (commercial cards, and consumer cards used in inter-regional Transactions) | 2.90% (two hundred and ninety basis points) | EUR 0.25 (twenty-five euro cents) |\n\n(b) The Service Fee includes all interchange, card scheme and processing fees; no other fee is payable on a Successful Transaction.\n\n(c) No Service Fee or other charge is payable for a Declined or Failed Attempt.\n\n**3.2 Currency.** All fees, charges and credits under this Agreement are calculated, invoiced and payable in euro (EUR).\n\n**3.3 Calculation and rounding.** Each fee and each credit is calculated separately for each Transaction and for each fee component, and is rounded to the nearest whole euro cent before fees are aggregated on the Invoice. An amount of exactly half a cent is rounded to the nearest even cent (banker's rounding).\n\n**3.4 Volume discount.** (a) Where the EEA Consumer Volume of a calendar month exceeds EUR 1,500,000.00 (one million five hundred thousand euro), the percentage element of the Service Fee for EEA Consumer Cards is 1.40% (one hundred and forty basis points) on the first EUR 1,500,000.00 of that volume and 1.25% (one hundred and twenty-five basis points) on the part of the EEA Consumer Volume in excess of EUR 1,500,000.00. The reduced rate applies only to that excess, not to the whole volume.\n\n(b) Transactions continue to be charged at the rate in clause 3.1 when they are processed. The difference is credited to the Merchant as a single volume adjustment on the Invoice for that month.\n\n(c) The fixed amount of the Service Fee and the Service Fee for Other Cards are not affected.\n\n## 4. Invoicing and disputes\n\n**4.1 Monthly invoice.** Within ten Business Days after the end of each calendar month the PSP shall issue an Invoice for the fees of that month, together with a statement listing each fee for each Transaction.\n\n**4.2 Payment.** Each Invoice is payable within fourteen days of its date. The PSP may instead deduct the amount of an Invoice from funds it holds for the Merchant, provided the Invoice has been issued first.\n\n**4.3 Disputes.** The Merchant may dispute an Invoice, or any fee or charge shown on it or on the accompanying statement, by written notice given within thirty (30) days after the date of the Invoice. Any amount found to have been overcharged shall be credited on the next Invoice. Fees not disputed within that period are deemed accepted, except in the case of manifest error or fraud.\n\n## 5. Refunds\n\n**5.1 Processing of Refunds.** The Merchant may request a Refund of a Successful Transaction through the PSP's interface. The PSP returns the Transaction amount to the cardholder and debits it from the Merchant's settlement funds.\n\n**5.2 Refund fee.** (a) For each Refund the Merchant shall pay a refund fee of EUR 0.20 (twenty euro cents).\n\n(b) No fee paid on the refunded Transaction, including the Service Fee under clause 3.1, is credited or repaid when a Refund is made.\n\n## 6. Chargebacks\n\n**6.1 Notification.** The PSP shall notify the Merchant of each Chargeback within two Business Days of receiving it from the Card Scheme.\n\n**6.2 Representment.** The Merchant may provide evidence for the PSP to contest a Chargeback under the Card Scheme rules. The outcome of a representment does not affect the fee under clause 6.3.\n\n**6.3 Chargeback fee.** For each Chargeback the Merchant shall pay a chargeback handling fee of EUR 20.00 (twenty euro), whatever the outcome of any representment.\n\n## 7. General\n\n**7.1 Entire agreement.** This Agreement is the entire agreement between the parties on its subject matter and supersedes any earlier arrangement.\n\n**7.2 Variation.** No variation of this Agreement is effective unless it is made in writing and signed by or on behalf of both parties, including by an amendment letter from the PSP countersigned by the Merchant. An amendment letter states the date from which it applies.\n\n**7.3 Governing law.** This Agreement is governed by the laws of the Netherlands. The courts of Amsterdam have exclusive jurisdiction.\n\n## Signatures\n\nSigned for and on behalf of **Brightpay** (the PSP):\n\nName: ____________________  Title: ____________________  Date: __________\n\nSigned for and on behalf of **Fernway** (the Merchant):\n\nName: ____________________  Title: ____________________  Date: __________\n</document>\n\nExtract the contract version that this agreement sets out."
+      }
+    ],
+    "output_config": {
+      "effort": "high",
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "required": [
+            "contract_id",
+            "party",
+            "counterparty",
+            "name",
+            "version",
+            "effective_from",
+            "currency",
+            "timezone",
+            "rounding",
+            "dispute_window_days",
+            "terms"
+          ],
+          "properties": {
+            "contract_id": {
+              "type": "string"
+            },
+            "party": {
+              "const": "provider"
+            },
+            "counterparty": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "effective_from": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "format": "date"
+            },
+            "currency": {
+              "enum": [
+                "EUR"
+              ]
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "rounding": {
+              "type": "object",
+              "required": [
+                "mode",
+                "level"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "half_up",
+                    "half_even"
+                  ]
+                },
+                "level": {
+                  "enum": [
+                    "transaction",
+                    "invoice_line"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "dispute_window_days": {
+              "type": "integer"
+            },
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "clause": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "pass_through",
+                      "markup_bps_tiered",
+                      "per_transaction_fixed",
+                      "blended_rate",
+                      "volume_discount",
+                      "refund",
+                      "chargeback_fee",
+                      "monthly_minimum",
+                      "payout_fee",
+                      "fx_spread_cap"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "parameters_json": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "clause",
+                  "kind",
+                  "title",
+                  "parameters_json"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "response": {
+    "id": "msg_011Cg2V2yoV5JyRePo6ZFKbq",
+    "container": null,
+    "content": [
+      {
+        "signature": "CAQS8QcKEAgSGAI4AUIIdGhpbmtpbmcSDHmdphhqEey7ljlAvxoMXv2IdxNfxWi8hx0zIjAUIY+/TgfWHoobsxrbXoYHXsWMM1KHg3NxuxHMQkpnKrNGs9SLUBjPX9X8OfvvV/gqjgeZeJuuxz8ijDe4U/D0v4eQeb4UbaA3bGvZnfkNWzUH50CGDdObkOFin2FYlVsQKUdmILINQA0bri2+V4vQbkI71Lu2lychZ8kP8LqPJpuWSsv/Kpl2g2bKT/MVIDlmuJz8OBHoDrE84Cjh1R16NjVDrCfXHA4rGuDkBcgxLPbxv3UkuSvtYgUdvrqhzrH2eO8LbJZ8xDUozfAwO9nYj8hD8E6rD2jUJu/Jn/BQ7nPN4ZP58satoE2fFBLR/ugo2Nq5f2gTLWzbJ/ZJRRqyZIQW7Rs3+/uQxaH9zSzP3A5X75qyF6ptY9vyAH9ktW2VVtY7dWL+ewkc6ecUMvjHA1DQEhhH7Xp4ineMcdI3yd4WiBjx8aYzdJBwaGpfe2ItsfGGnMGYINHPa2hHBA2Kb0E3KbknpJlVKUHVUoVJprLUvXFY1TfaYVz40dAe1aiJ9QrCaauoZuirfcpgy3HLYZc2l9F5f4oWAn5/Uym9cj/vINIMBV+QOcprFeZRP9JCCpqFaJ9NEw3m862hRvpl96CYfStmcG1TEQ/V8IPu3PLrBXSXdlr5eo1ocrqBErSbB+HBK0GqD8HKr0np0oIno3f9vzd4kr1ZFml89LLIbb0ACCfWB+jLaKB3PjGzREiLwr8J14sSTLZSHAcO/qYPFdB7660hQZjUQxp1Y+nyYYp9WBFSOGvcmRNxGunvOv9JzCzrD52MUSzNUYGU35lWZpusmoyWjb0GjRtK2vIY3pUSJqbGBs1+exRIs5W2wJW5eEk4mjfbYQ4OR2FjWjKBwrowqipTAWMZ6mrLIMB5WH8A1dDVdaptvy3QhfJCSvo/pWe1gXhDpixHKDot7s3LpPWpHv8McfOLsL5qH8vV6f1f3vBkZjOrqWOrCMTw/KlyI3qE0ul5YpZlAy7A6LkZseH/qowB2cmEzksrpLZF0mluJFF/5KvAXOITw1orHadgN768aloimv6MgwaXC4ZzlchF2g93/aA2MuW8CVznPBdLZk6u3NrUnYwFcKJBPdRCW+5selRTt6QNqtrP5ys1paRS7tDoExFim07B9lwYkFXBcKAD2hak+5AbfpKpNyIm5Gly31CTs0vFfSBsQhEgq19N4XekkBNAao/yBaDa070AtdGJrDuzXmvgNnMtLpWThu6/8FZkXG0ZH1G0JHj86ubGCd7OuSsK2zLh+H5TwR4AAGKvbzJ2YyJtq4c+JGYDGAE=",
+        "thinking": "",
+        "type": "thinking"
+      },
+      {
+        "citations": null,
+        "text": "{\"contract_id\":\"BP-2025-07\",\"party\":\"provider\",\"counterparty\":\"brightpay\",\"name\":\"Brightpay\",\"version\":1,\"effective_from\":\"2025-07-01\",\"currency\":\"EUR\",\"timezone\":\"UTC\",\"rounding\":{\"mode\":\"half_even\",\"level\":\"transaction\"},\"dispute_window_days\":30,\"terms\":[{\"clause\":\"3.1\",\"kind\":\"blended_rate\",\"title\":\"All-inclusive service fee by card segment\",\"parameters_json\":\"{\\\"segments\\\":{\\\"eea_consumer\\\":{\\\"bps\\\":140,\\\"fixed_minor\\\":25},\\\"other\\\":{\\\"bps\\\":290,\\\"fixed_minor\\\":25}},\\\"failed_attempts\\\":\\\"no_fee\\\"}\"},{\"clause\":\"3.4\",\"kind\":\"volume_discount\",\"title\":\"EEA consumer card volume discount above EUR 1,500,000\",\"parameters_json\":\"{\\\"segment\\\":\\\"eea_consumer\\\",\\\"basis\\\":\\\"monthly_segment_volume\\\",\\\"tiering\\\":\\\"marginal\\\",\\\"settlement\\\":\\\"monthly_adjustment\\\",\\\"tiers\\\":[{\\\"up_to_minor\\\":150000000,\\\"bps\\\":140},{\\\"up_to_minor\\\":null,\\\"bps\\\":125}]}\"},{\"clause\":\"5.2\",\"kind\":\"refund\",\"title\":\"Refund fee, no credit of original service fee\",\"parameters_json\":\"{\\\"fee_minor\\\":20,\\\"credit_original_markup\\\":false}\"},{\"clause\":\"6.3\",\"kind\":\"chargeback_fee\",\"title\":\"Chargeback handling fee\",\"parameters_json\":\"{\\\"amount_minor\\\":2000}\"}]}",
+        "type": "text"
+      }
+    ],
+    "diagnostics": null,
+    "model": "claude-opus-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "inference_geo": "global",
+      "input_tokens": 7009,
+      "output_tokens": 771,
+      "output_tokens_details": {
+        "thinking_tokens": 218
+      },
+      "server_tool_use": null,
+      "service_tier": "standard"
+    }
+  },
+  "validation_errors": [],
+  "error": null
+}

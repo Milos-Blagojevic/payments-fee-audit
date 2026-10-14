@@ -1,0 +1,60 @@
+{
+  "total_usd": "0.215116",
+  "calls": [
+    {
+      "name": "northgate-v1",
+      "model": "claude-opus-5-5",
+      "timestamp": "2026-10-14T16:57:49Z",
+      "prompt_sha256": "b42fd679c410d801638dac294ff728f3b65503eefd0f78bf6a039bcda99603c1",
+      "input_tokens": 7182,
+      "output_tokens": 634,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cost_usd": "0.041408"
+    },
+    {
+      "name": "northgate-v2",
+      "model": "claude-opus-5-5",
+      "timestamp": "2026-10-14T16:58:05Z",
+      "prompt_sha256": "1765664eea88b1629a76d5e549e133598d5bdd4575d4915fca77f824a7391017",
+      "input_tokens": 8252,
+      "output_tokens": 805,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cost_usd": "0.049108"
+    },
+    {
+      "name": "brightpay-v1",
+      "model": "claude-opus-5-5",
+      "timestamp": "2026-10-14T16:58:13Z",
+      "prompt_sha256": "97c57db477122d2a67a9bd83a77705d11d69758a10fd375b344d26c4b05bff3c",
+      "input_tokens": 7009,
+      "output_tokens": 771,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cost_usd": "0.043456"
+    },
+    {
+      "name": "kestrel-v1",
+      "model": "claude-opus-5-5",
+      "timestamp": "2026-10-14T16:58:20Z",
+      "prompt_sha256": "7b97620292f40267062c8cd9c8035729d4595a888c3849ea8fccae3e364d3172",
+      "input_tokens": 6672,
+      "output_tokens": 679,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cost_usd": "0.040268"
+    },
+    {
+      "name": "kestrel-v2",
+      "model": "claude-opus-5-5",
+      "timestamp": "2026-10-14T16:58:28Z",
+      "prompt_sha256": "2d705115ab2081d7989987901134a8bc8672638fccb95e7f50f23653f2635713",
+      "input_tokens": 7479,
+      "output_tokens": 548,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cost_usd": "0.040876"
+    }
+  ]
+}

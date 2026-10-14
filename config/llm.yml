@@ -1,0 +1,13 @@
+# LLM contract extraction: `python -m feeaudit.extraction extract` (docs/llm-extraction.md). Never part of `make all`.
+
+default_model: claude-opus-5-5   # env FEEAUDIT_LLM_MODEL overrides it
+budget_usd: "5.00"               # cap on the total in contracts/extracted/recorded/spend.json
+max_tokens: 16000                # output cap per call, thinking included; the guard counts all of it as spent
+effort: high                     # output_config.effort
+
+# USD per million tokens, as strings (exact decimals), from Anthropic's pricing page
+# (https://platform.claude.com/docs/en/about-claude/pricing), checked 2026-10-14. Re-check before changing the model.
+# The extractor refuses to call the API while prices_verified is false or the model has no prices here.
+prices_verified: true
+prices_usd_per_million_tokens:
+  claude-opus-5-5: {input: "4.00", output: "20.00", cache_write: "5.00", cache_read: "0.20"}

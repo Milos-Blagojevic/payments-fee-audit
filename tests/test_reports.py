@@ -102,3 +102,26 @@ def test_readme_blocks_render_idempotently(con):
     once = readme.render(current, blocks)
     assert readme.render(once, blocks) == once
     assert set(re.findall(r"<!-- generated:([\w-]+) -->", once)) == set(blocks)
+
+
+def test_client_report_totals_match_margin_and_findings(con):
+    from feeaudit.reports import client
+
+    out = client.client_report(con)
+    margin = list(csv.DictReader(io.StringIO(out["client_margin.csv"])))
+    totals = client.margin_totals(con)
+    for column in ("billed_minor", "revenue_leakage_minor", "provider_cost_minor", "margin_minor"):
+        assert sum(int(r[column]) for r in margin) == totals[column]
+    per_client = client.margin_by_client(con)
+    assert sum(r["margin_minor"] for r in per_client) == totals["margin_minor"]
+    findings = list(csv.DictReader(io.StringIO(out["client_findings.csv"])))
+    count, net = con.execute(
+        "select count(*), sum(difference_minor) from main.fct_client_billing_findings").fetchone()
+    assert sum(int(r["findings"]) for r in findings) == count
+    assert sum(int(r["difference_minor"]) for r in findings) == net
+    by_type = client.leakage_by_type(con)
+    assert sum(r["findings"] for r in by_type) == count
+    assert sum(r["overbilled_minor"] - r["leakage_minor"] for r in by_type) == net
+    text = out["client_report.md"]
+    assert f"EUR {eur(totals['revenue_leakage_minor'])} of revenue leakage" in text
+    assert f"the margin is EUR {eur(totals['margin_minor'])}" in text

@@ -506,3 +506,208 @@ models:
         description: Rounding mode of the contract version.
       - name: dispute_window_days
         description: Dispute window of the contract version.
+
+  - name: int_expected_client_billing
+    description: >
+      What Fernway should bill each client under the pricing agreement in force (data contract sections 4.2 and
+      8.5): one row per ledger event × invoice line component (succeeded payments: `payment_fees`; payouts:
+      `payout_fees_<rail>` and, when not in EUR, `fx_markup`), plus client × month rows for `platform_fee`,
+      `volume_discount` and `promo_discount` (every client × month, zeros included; promotion rows only for
+      agreements with a promotion). Months are UTC; payments by creation, payouts by execution (A13). Amounts stay
+      exact until the invoice line rounds their sum once.
+    columns:
+      - name: expected_billing_id
+        description: "`<event_id or client_id:YYYY-MM>:<component>`."
+        data_tests: [unique, not_null]
+      - name: event_type
+        description: "`payment`, `payout`, or `client_month` for the monthly terms."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [payment, payout, client_month]
+      - name: event_id
+        description: "{{ doc('event_id') }} Null on client × month rows."
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC invoice month.
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('client_component') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }} (`FW-<client_id>`)."
+        data_tests: [not_null]
+      - name: contract_version
+        description: Agreement version in force at the event (client × month rows; on the month's first day).
+        data_tests: [not_null]
+      - name: clause
+        description: "{{ doc('clause') }}"
+        data_tests: [not_null]
+      - name: currency
+        description: Agreement currency (EUR).
+      - name: rounding_mode
+        description: Rounding mode of the agreement, applied once per invoice line.
+        data_tests: [not_null]
+      - name: exact_amount
+        description: >
+          Exact amount in 10⁻⁸ minor units (`exact_scale`), negative for discounts: `(amount × bps + fixed × 10000)
+          × 10⁴` per payment; `fixed × 10⁸` per payout; `E × bps × 10⁴` per non-EUR payout; the platform fee × 10⁸;
+          minus the discount percentage of the month's exact payment fees.
+        data_tests: [not_null]
+      - name: basis_minor
+        description: >
+          The amount the rate applies to: payment amount; EUR equivalent at mid `E = round(amount / mid)` for
+          `fx_markup`; the month's processed volume (the tier basis) for `volume_discount`.
+      - name: rate_bps
+        description: Rate in basis points (payment fee by card segment, FX markup).
+      - name: fixed_minor
+        description: Fixed fee per payment or payout, or the platform fee, minor units.
+      - name: discount_pct
+        description: Discount percentage of the volume tier or the promotion.
+      - name: tier_no
+        description: Volume discount tier the month's processed volume falls in (`up_to_minor` exclusive).
+      - name: card_segment
+        description: "{{ doc('card_segment') }}"
+      - name: event_timestamp_utc
+        description: Payment creation or payout execution time, UTC (null on client × month rows).
+      - name: evidence
+        description: Source file and row of the ledger event (and the FX hour), and the agreement file and clause.
+        data_tests: [not_null]
+
+  - name: int_client_billing_comparison
+    description: >
+      Expected against billed client invoice lines, one row per client × month × invoice line component that was
+      expected or billed. Expected is the exact sum of `int_expected_client_billing` rounded once (`invoice_line`
+      level); billed is the invoice line (0 when the line is missing). Every row carries its rule classification.
+    columns:
+      - name: client_billing_line_id
+        description: "`<client_id>:<YYYY-MM>:<component>`."
+        data_tests: [unique, not_null]
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC invoice month.
+        data_tests: [not_null]
+      - name: component
+        description: "{{ doc('client_component') }}"
+        data_tests: [not_null]
+      - name: contract_id
+        description: "{{ doc('contract_id') }}"
+        data_tests: [not_null]
+      - name: contract_version
+        description: "{{ doc('contract_version') }}"
+        data_tests: [not_null]
+      - name: clause
+        description: "{{ doc('clause') }} Null only for a billed component no term produces."
+      - name: contract_file
+        description: Agreement YAML in force on the month's first day.
+      - name: dispute_window_days
+        description: The agreement's dispute window in days.
+      - name: currency
+        description: Agreement currency (EUR).
+      - name: invoice_id
+        description: Fernway's client invoice for the client × month.
+      - name: invoice_date
+        description: Invoice date.
+      - name: line_ids
+        description: Client invoice line ids (`<invoice_id>:<line_no>`); empty when the line is missing.
+        data_tests: [not_null]
+      - name: line_count
+        description: Number of invoice lines for the component.
+      - name: events
+        description: Number of ledger events behind the expected amount (0 on monthly components).
+      - name: exact_amount
+        description: Exact expected amount in 10⁻⁸ minor units; null for a billed component no term produces.
+      - name: expected_minor
+        description: The exact amount rounded once in the agreement's rounding mode, minor units.
+        data_tests: [not_null]
+      - name: other_rounding_minor
+        description: The same line under the other rounding mode; a one-unit difference that equals it is `rounding`.
+      - name: billed_minor
+        description: Billed amount on the invoice, minor units (0 when no line).
+        data_tests: [not_null]
+      - name: difference_minor
+        description: billed − expected; negative = Fernway billed too little (revenue leakage).
+        data_tests: [not_null]
+      - name: tier_no
+        description: Volume discount tier the month's volume earns.
+      - name: discount_pct
+        description: Discount percentage of that tier or of the promotion.
+      - name: billed_tier_no
+        description: The (highest) volume discount tier whose discount equals the billed one, if any.
+      - name: billed_discount_pct
+        description: Discount percentage of `billed_tier_no`.
+      - name: promo_valid_until
+        description: Last day (UTC, inclusive) of the promotion in the agreement.
+      - name: promo_whole_month_minor
+        description: The promotion's discount on all of the month's payment fees, end date ignored.
+      - name: finding_type
+        description: >
+          `rail_not_billed` (payout fees of a rail with no invoice line), `fx_markup_not_billed` (no FX markup line),
+          `promo_after_end_date` (the whole month discounted after the promotion ended), `volume_discount_too_high`
+          (the discount of a higher tier than the month's volume earns), `rounding`, `fee_mismatch`; null when billed
+          equals expected.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [rail_not_billed, fx_markup_not_billed, promo_after_end_date, volume_discount_too_high, rounding, fee_mismatch]
+      - name: formula
+        description: The expected calculation with real numbers and the clause used.
+        data_tests: [not_null]
+      - name: evidence
+        description: The invoice lines (file and rows) or their absence, the ledger events, and the agreement clause.
+        data_tests: [not_null]
+
+  - name: int_provider_cost_allocation
+    description: >
+      Invoiced provider fees allocated to clients (A09, A32), one row per provider line component × client: by the
+      ledger event the line belongs to; by the client the provider reported for a line without a ledger event; by
+      volume share for monthly charges without an event (monthly minimum: processed volume; volume adjustment: EEA
+      consumer volume, in the provider's month), in whole minor units with largest remainders. The parts of every
+      line add up to the line exactly.
+    columns:
+      - name: allocation_id
+        description: "`<line_component_id>:<client_id>`."
+        data_tests: [unique, not_null]
+      - name: line_component_id
+        description: Provider line component (`int_provider_lines`).
+        data_tests: [not_null]
+      - name: line_id
+        description: Provider line id.
+      - name: provider
+        description: "{{ doc('provider') }}"
+      - name: component
+        description: "{{ doc('component') }}"
+      - name: client_id
+        description: "{{ doc('client_id') }}"
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC month of the event (payouts by execution); for monthly charges the provider month they are for.
+        data_tests: [not_null]
+      - name: allocation_method
+        description: "`event`, `reported_client` (no ledger event) or `volume_share` (monthly charges)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [event, reported_client, volume_share]
+      - name: event_id
+        description: Ledger event of the line (null when none).
+      - name: is_pending
+        description: Whether the line is after the ledger watermark (`unmatched_pending`, A19).
+        data_tests: [not_null]
+      - name: line_amount_minor
+        description: The whole line component's amount, minor units.
+      - name: basis_volume_minor
+        description: The client's volume the share is computed on (volume shares only).
+      - name: total_basis_volume_minor
+        description: The provider month's total of that volume (volume shares only).
+      - name: allocated_minor
+        description: Part of the line allocated to the client, minor units.
+        data_tests: [not_null]
+      - name: currency
+        description: Currency of the charge (EUR).

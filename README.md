@@ -1,6 +1,6 @@
 # payments-fee-audit
 
-Checks every fee a payments company pays its providers against the contracts behind them, line by line, and turns the differences into numbers a finance team can act on: a findings summary, dispute packs per invoice, a monthly cost report and a provider comparison.
+Checks every fee a payments company pays its providers, and every invoice it sends its own clients, against the contracts behind them, line by line, and turns the differences into numbers a finance team can act on: a findings summary, dispute packs per invoice, a monthly cost report, a provider comparison and a client report with revenue leakage and margin.
 
 Everything runs on fully synthetic, seeded data. Fernway, its clients and its providers are fictional; the contracts and rates are illustrative, not anyone's real pricing. Because the data is generated, every planted billing error is known and the checks can be scored against it. Every number in this README is written by `make report` from the warehouse; the text around the numbers is hand-written.
 
@@ -48,6 +48,10 @@ Planted billing errors (counted from the generator's truth by the evaluation ste
 | D13 | Payout fee cap not applied | 45 | 1,856.47 |
 | D14 | Charge with no matching payment | 47 | 29.72 |
 | D15 | Refund fee not billed | 181 | -36.20 |
+| L01 | Payout rail fee not billed to the client | 92 | -1,808.55 |
+| L02 | Promotional price after its end date | 4 | -1,595.43 |
+| L03 | FX markup not billed to the client | 6 | -4,463.26 |
+| L04 | Volume discount above the agreed tier | 24 | -2,317.31 |
 <!-- /generated -->
 
 ## From contract to rule
@@ -169,11 +173,14 @@ flowchart LR
   end
   subgraph intermediate
     int_charge_comparison
+    int_client_billing_comparison
     int_contract_tiers
     int_expected_charges
+    int_expected_client_billing
     int_ledger_events
     int_ledger_watermark
     int_provider_contract_versions
+    int_provider_cost_allocation
     int_provider_invoices
     int_provider_lines
     int_provider_months
@@ -181,6 +188,8 @@ flowchart LR
   end
   subgraph marts
     dim_contract_terms
+    fct_client_billing_findings
+    fct_client_margin
     fct_dispute_queue
     fct_findings
     fct_fx_conversions
@@ -191,22 +200,31 @@ flowchart LR
   raw --> staging
   fct_findings --> fct_dispute_queue
   fct_findings --> fct_invoice_reconciliation
+  fct_fx_conversions --> fct_client_margin
   int_charge_comparison --> fct_findings
   int_charge_comparison --> fct_fx_conversions
   int_charge_comparison --> fct_invoice_reconciliation
   int_charge_comparison --> fct_provider_comparison
   int_charge_comparison --> fct_provider_costs
+  int_client_billing_comparison --> fct_client_billing_findings
+  int_client_billing_comparison --> fct_client_margin
   int_contract_tiers --> dim_contract_terms
   int_contract_tiers --> fct_provider_comparison
   int_contract_tiers --> int_charge_comparison
+  int_contract_tiers --> int_client_billing_comparison
   int_contract_tiers --> int_expected_charges
+  int_contract_tiers --> int_expected_client_billing
   int_expected_charges --> fct_fx_conversions
   int_expected_charges --> int_charge_comparison
+  int_expected_client_billing --> int_client_billing_comparison
+  int_ledger_events --> fct_client_margin
   int_ledger_events --> fct_fx_conversions
   int_ledger_events --> fct_provider_comparison
   int_ledger_events --> fct_provider_costs
   int_ledger_events --> int_charge_comparison
   int_ledger_events --> int_expected_charges
+  int_ledger_events --> int_expected_client_billing
+  int_ledger_events --> int_provider_cost_allocation
   int_ledger_events --> int_provider_months
   int_ledger_events --> int_reconciliation
   int_ledger_watermark --> int_provider_months
@@ -216,16 +234,19 @@ flowchart LR
   int_provider_contract_versions --> int_charge_comparison
   int_provider_contract_versions --> int_expected_charges
   int_provider_contract_versions --> int_provider_months
+  int_provider_cost_allocation --> fct_client_margin
   int_provider_invoices --> fct_findings
   int_provider_invoices --> fct_invoice_reconciliation
   int_provider_lines --> fct_invoice_reconciliation
   int_provider_lines --> int_charge_comparison
+  int_provider_lines --> int_provider_cost_allocation
   int_provider_lines --> int_reconciliation
   int_provider_months --> fct_findings
   int_provider_months --> fct_provider_comparison
   int_provider_months --> int_charge_comparison
   int_provider_months --> int_expected_charges
   int_reconciliation --> int_charge_comparison
+  int_reconciliation --> int_provider_cost_allocation
   interchange_table_v1 --> fct_provider_comparison
   interchange_table_v1 --> int_expected_charges
   stg_brightpay__adjustments --> int_provider_lines
@@ -234,15 +255,23 @@ flowchart LR
   stg_contracts__contract_terms --> dim_contract_terms
   stg_contracts__contract_terms --> fct_provider_comparison
   stg_contracts__contract_terms --> int_charge_comparison
+  stg_contracts__contract_terms --> int_client_billing_comparison
   stg_contracts__contract_terms --> int_contract_tiers
   stg_contracts__contract_terms --> int_expected_charges
+  stg_contracts__contract_terms --> int_expected_client_billing
   stg_contracts__contract_versions --> dim_contract_terms
+  stg_contracts__contract_versions --> int_client_billing_comparison
+  stg_contracts__contract_versions --> int_expected_client_billing
   stg_contracts__contract_versions --> int_ledger_events
   stg_contracts__contract_versions --> int_provider_contract_versions
   stg_contracts__contract_versions --> int_provider_lines
+  stg_fernway__client_invoice_lines --> int_client_billing_comparison
+  stg_fernway__client_invoices --> int_client_billing_comparison
+  stg_fernway__clients --> int_expected_client_billing
   stg_fx__mid_hourly --> fct_fx_conversions
   stg_fx__mid_hourly --> int_charge_comparison
   stg_fx__mid_hourly --> int_expected_charges
+  stg_fx__mid_hourly --> int_expected_client_billing
   stg_kestrel__invoices --> int_provider_invoices
   stg_kestrel__payouts_statement --> int_provider_lines
   stg_ledger__chargebacks --> int_ledger_events
@@ -334,6 +363,10 @@ The findings are compared with the generator's planted errors (`make eval`, sche
 | D13 | Payout fee cap not applied | 45 | 45 | 1.000 | 1.000 | 1,856.47 | 1,856.47 |
 | D14 | Charge with no matching payment | 47 | 47 | 1.000 | 1.000 | 29.72 | 29.72 |
 | D15 | Refund fee not billed | 181 | 181 | 1.000 | 1.000 | -36.20 | -36.20 |
+| L01 | Payout rail fee not billed to the client | 92 | 92 | 1.000 | 1.000 | -1,808.55 | -1,808.55 |
+| L02 | Promotional price after its end date | 4 | 4 | 1.000 | 1.000 | -1,595.43 | -1,595.43 |
+| L03 | FX markup not billed to the client | 6 | 6 | 1.000 | 1.000 | -4,463.26 | -4,463.26 |
+| L04 | Volume discount above the agreed tier | 24 | 24 | 1.000 | 1.000 | -2,317.31 | -2,317.31 |
 
 - False findings on noise rows: **0**.
 - Findings that match no planted error and are not rounding noise: **0**.
@@ -349,6 +382,7 @@ The findings are compared with the generator's planted errors (`make eval`, sche
 - [Monthly provider cost report](reports/examples/provider_costs.md): volume, fees by component, effective and markup rates by provider and card segment, change against the previous month.
 - [Provider comparison](reports/examples/provider_comparison.md): cost per card segment under each card contract.
 - [Follow one finding](reports/examples/follow_one_finding.md): one finding traced from the raw row to the finding.
+- [Client report](reports/examples/client_report.md): revenue leakage by client, type and month, and margin per client.
 - Dispute pack for invoice BP-2026-06-001: [letter](reports/examples/dispute_packs/brightpay/BP-2026-06-001/letter.md) and [findings](reports/examples/dispute_packs/brightpay/BP-2026-06-001/findings.csv) (178 overcharges, EUR 309.32, deadline 2026-08-02).
 
 The switch that would have saved the most: moving Brightpay's `eea_consumer` volume (EUR 10,307,622.05, 125,016 payments) to Northgate Acquiring's contract, EUR 102,581.19 from 2026-01 to 2026-06 (1.703% instead of 0.708% of volume).
@@ -359,6 +393,34 @@ The switch that would have saved the most: moving Brightpay's `eea_consumer` vol
 | eea_consumer | Northgate Acquiring | 15,339,887.65 | 114,804.12 | 109,259.17 | 0.712% | 268,640.64 (Brightpay) | 1.751% | -159,381.47 |
 | other | Brightpay | 1,017,670.39 | 32,619.92 | 32,570.38 | 3.200% | 20,871.82 (Northgate Acquiring) | 2.051% | 11,698.56 |
 | other | Northgate Acquiring | 1,490,661.70 | 31,346.33 | 30,643.97 | 2.056% | 48,476.81 (Brightpay) | 3.252% | -17,832.84 |
+<!-- /generated -->
+
+## Revenue side
+
+The same checks run on Fernway's own invoices: each client's pricing agreement (versioned YAML under `contracts/clients/`) is applied to the client's ledger events and compared with the invoice lines Fernway sent. Here the error costs Fernway, not the provider: a fee not billed, a promotion still applied after its end date, a discount above the agreed tier. The margin per client sets the billing against the provider costs of the client's own events. The full breakdown by client, type and month is in the [client report](reports/examples/client_report.md).
+
+<!-- generated:revenue-side -->
+From 2026-01 to 2026-06, Fernway billed its 40 clients EUR 1,049,178.87 against EUR 1,059,363.42 due under their pricing agreements: EUR 10,184.55 of revenue leakage (M09) across 126 invoice lines. After EUR 588,774.32 of provider fees and FX spread allocated to the clients' events, the margin is EUR 460,404.55 (M10), 1.635% of processed volume.
+
+Planted against found, from the evaluation (money as the planted difference, negative = billed too little):
+
+| Type | Error | Planted | Found | Planted EUR | Found EUR |
+|---|---|---:|---:|---:|---:|
+| L01 | Payout rail fee not billed to the client | 92 | 92 | -1,808.55 | -1,808.55 |
+| L02 | Promotional price after its end date | 4 | 4 | -1,595.43 | -1,595.43 |
+| L03 | FX markup not billed to the client | 6 | 6 | -4,463.26 | -4,463.26 |
+| L04 | Volume discount above the agreed tier | 24 | 24 | -2,317.31 | -2,317.31 |
+
+All client findings by type:
+
+| Type | Finding | Clients | Findings | Billed too little | Billed too much |
+|---|---|---:|---:|---:|---:|
+| L01 | Payout rail fee not billed to the client | 33 | 92 | 1,808.55 | 0.00 |
+| L02 | Promotional price after its end date | 2 | 4 | 1,595.43 | 0.00 |
+| L03 | FX markup not billed to the client | 1 | 6 | 4,463.26 | 0.00 |
+| L04 | Volume discount above the agreed tier | 21 | 24 | 2,317.31 | 0.00 |
+
+Cost allocation (A09, A32): each provider fee goes to the client whose ledger event it belongs to (EUR 473,081.51); monthly provider charges without an event, minimums and volume adjustments, are split by the client's share of the volume the term is computed on (EUR 3,943.33); the FX spread of the client's converted payouts (M08) is a cost too (EUR 111,749.48). Fees on provider lines after the ledger watermark (EUR 2,525.35) belong to the next billing cycle and are left out.
 <!-- /generated -->
 
 ## Reproduce

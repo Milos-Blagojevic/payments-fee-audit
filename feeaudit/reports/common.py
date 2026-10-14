@@ -27,6 +27,10 @@ TYPE_LABELS = {
     "payout_fee_cap_not_applied": "Payout fee cap not applied",
     "unknown_charge": "Charge with no matching payment",
     "refund_fee_missing": "Refund fee not billed",
+    "rail_not_billed": "Payout rail fee not billed to the client",
+    "promo_after_end_date": "Promotional price after its end date",
+    "fx_markup_not_billed": "FX markup not billed to the client",
+    "volume_discount_too_high": "Volume discount above the agreed tier",
     "rounding": "Rounding (one cent, other rounding mode)",
     "fee_mismatch": "Difference no rule explains",
 }

@@ -203,3 +203,14 @@ How Fernway bills (the generator's rules, which the client checks reproduce):
 `data/truth/discrepancies.csv`, `client_leakage.csv`, `noise_events.csv`, `parameters.csv`, loaded into schema `truth` with typed columns (`line_ids` as `VARCHAR[]`). `difference_minor = billed_minor − correct_minor`. Month-level types (D02, D05, D10) have no `event_id`; their `line_ids` list every line whose amount was changed (none for D10). D04 lists the refund's `REFUND_FEE` line; D11/D12 money is on the EUR debit (D11 correct = the cap allowance), D13 on the fee. Only lines whose billed amount differs from the correct amount are planted, so every discrepancy is at least one minor unit. Noise rows give `source_file` and `source_row` of the affected line; file-level noise (N02 per file in minor units or with comma decimals, N03 per Northgate file) has an empty `source_row`. `parameters` holds every config key (dotted path) with its JSON value.
 
 Planting rules beyond section 5: D02 orders the month's payments by (`created_at`, payment id) and bills at the first tier rate every payment whose running volume, itself included, is below the threshold. D12 uses the provider's normal spread on the mid of a worse hour within ±6 h, and only where the billed debit stays at or below the D11 allowance. D14 is planted on Northgate (every non-zero line of a payment that is not in the ledger) and Brightpay, not on Kestrel (a phantom payout would also debit its principal). Month-level types are never planted in the last period month.
+
+## 9. Engine readings
+
+Where sections 1–7 leave a choice, the dbt engine reads them as follows (reasoning in `ASSUMPTIONS.md`):
+
+- Payouts are dated by `executed_at` for the contract version, month, FX hour and rail fee (A13).
+- Provider lines after the ledger watermark, and month-level rows for a month the ledger does not fully cover, are pending: compared later, never findings (A19).
+- Reference matching first, then the fallback among ledger events not matched by reference, one-to-one with deterministic tie-breaks; a second line of the same event × component is the duplicate (A20).
+- A markup line that equals both the stale rate and the first-tier rate takes the reading the month's unambiguous lines show (A21).
+- `days_left` counts from the dbt var `as_of_date` (A22); a finding belongs to the invoice its line arrived on (A24).
+- `int_expected_charges` has the same rows as the Python reference engine's `reference.expected_charges`; `make verify` requires exact equality.

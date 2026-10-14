@@ -12,7 +12,7 @@ from pathlib import Path
 
 import duckdb
 
-from feeaudit.reports import finance
+from feeaudit.reports import client, finance
 from feeaudit.reports.common import eur, label, md_table, rows
 from feeaudit.verify import DBT_TABLE, REFERENCE_TABLE, compare
 
@@ -262,6 +262,7 @@ EXAMPLES = [
                                                           "previous month"),
     ("provider_comparison.md", "Provider comparison", "cost per card segment under each card contract"),
     ("follow_one_finding.md", "Follow one finding", "one finding traced from the raw row to the finding"),
+    ("client_report.md", "Client report", "revenue leakage by client, type and month, and margin per client"),
 ]
 
 
@@ -276,6 +277,24 @@ def block_examples(con, pack: dict) -> str:
     return "\n".join(items) + "\n\n" + finance.best_switch_sentence(con) + "\n\n" + finance.comparison_table(con)
 
 
+def block_revenue_side(con) -> str:
+    planted = rows(con, "select truth_id, finding_type, planted, found, planted_minor, found_minor"
+                        " from evaluation.detection_by_type where truth_id like 'L%' order by truth_id")
+    return "\n\n".join([
+        client.headline(con),
+        "Planted against found, from the evaluation (money as the planted difference, negative = billed too little):",
+        md_table(
+            ["Type", "Error", "Planted", "Found", "Planted EUR", "Found EUR"],
+            [[r["truth_id"], label(r["finding_type"]), f"{r['planted']:,}", f"{r['found']:,}",
+              eur(r["planted_minor"]), eur(r["found_minor"])] for r in planted],
+            "llrrrr",
+        ),
+        "All client findings by type:",
+        client.leakage_type_table(con),
+        client.allocation_text(con),
+    ])
+
+
 def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
     return {
         "headline": block_headline(con, as_of),
@@ -287,6 +306,7 @@ def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
         "findings-summary": finance.findings_type_table(con),
         "evaluation": block_evaluation(con),
         "examples": block_examples(con, finance.example_pack(con)),
+        "revenue-side": block_revenue_side(con),
     }
 
 

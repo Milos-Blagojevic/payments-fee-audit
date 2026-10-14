@@ -65,3 +65,18 @@ One row per provider invoice. Overcharges after the deadline can no longer be di
 | Northgate Acquiring | NG-INV-202604 | 2026-05-05 | 2026-07-04 | -11 | expired | 15,347 | 2,909.82 | 0.00 | 0.00 |
 | Northgate Acquiring | NG-INV-202605 | 2026-06-05 | 2026-08-04 | 20 | open | 286 | 3,311.24 | 3,311.24 | 0.00 |
 | Northgate Acquiring | NG-INV-202606 | 2026-07-05 | 2026-09-03 | 50 | open | 273 | 59.43 | 59.43 | 0.00 |
+
+## Anomalies (not disputed)
+
+Anomaly detection (`fct_anomalies`) flags billing patterns no rule describes: a day whose effective rate of a provider × fee component × card segment is far from its median over the previous 28 days (robust z-score above 4), and a fee type no contract names on the first day it is billed. A flagged day that the contract or the rule findings above already explain needs nothing more; the rest are anomaly findings (`method = 'anomaly'` in `fct_findings`). They are leads to take up with the provider, not claims under a clause: they are not in the totals above, the dispute queue or the dispute packs.
+
+| Anomaly | Days flagged | Explained by the contract | Explained by rule findings | Unexplained (anomaly findings) |
+|---|---:|---:|---:|---:|
+| Fee type no contract names, first billed | 1 | 0 | 0 | 1 |
+| Daily effective rate off its baseline | 152 | 85 | 67 | 0 |
+
+| Day | Provider | Component | Cards | Anomaly | Observed | Baseline | Billed | Lines | Invoice |
+|---|---|---|---|---|---:|---:|---:|---:|---|
+| 2026-05-15 | Northgate Acquiring | `network_access_fee` | all | Fee type no contract names, first billed | 3.99 bps | 0.00 bps | 45.76 | 1,650 | NG-INV-202605 |
+
+- 2026-05-15, Northgate Acquiring: northgate bills network_access_fee for the first time on 2026-05-15: 1,650 lines, 45.76 EUR (3.99 bps of the day's processed volume of 114,630.15 EUR). Baseline: 0 bps, it was never billed in the 134 days of history before, and no version of the northgate contract names it. Threshold: any amount of a fee type never seen before. Not explained: 45.76 EUR billed that neither the contract nor a rule finding accounts for.

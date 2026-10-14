@@ -225,7 +225,8 @@ def _anomaly_report(con) -> None:
     if not (_exists(con, ANOMALIES) and _exists(con, "truth.anomalies")):
         con.execute("""
             CREATE OR REPLACE TABLE evaluation.anomaly_report (category VARCHAR, anomaly_id VARCHAR,
-                provider VARCHAR, component VARCHAR, card_segment VARCHAR, start_date DATE, planted_lines BIGINT,
+                provider VARCHAR, component VARCHAR, card_segment VARCHAR, line_type VARCHAR, rate_bps INTEGER,
+                start_date DATE, planted_lines BIGINT,
                 planted_minor BIGINT, detected BOOLEAN, first_detected_day DATE, days_to_detect INTEGER,
                 detected_anomaly_id VARCHAR, anomaly_type VARCHAR, detections BIGINT, explained_by VARCHAR,
                 is_finding BOOLEAN, explanation VARCHAR)""")
@@ -242,7 +243,8 @@ def _anomaly_report(con) -> None:
                    count(*) AS detections
             FROM pairs GROUP BY planted_id
         )
-        SELECT 'planted' AS category, t.anomaly_id, t.provider, t.component, t.card_segment, t.start_date,
+        SELECT 'planted' AS category, t.anomaly_id, t.provider, t.component, t.card_segment, t.line_type, t.rate_bps,
+               t.start_date,
                t.lines AS planted_lines, t.billed_minor AS planted_minor, fd.planted_id IS NOT NULL AS detected,
                fd.first_day AS first_detected_day, (fd.first_day - t.start_date)::INTEGER AS days_to_detect,
                a.anomaly_id AS detected_anomaly_id, a.anomaly_type, coalesce(fd.detections, 0) AS detections,
@@ -251,7 +253,8 @@ def _anomaly_report(con) -> None:
         LEFT JOIN first_detection fd ON fd.planted_id = t.anomaly_id
         LEFT JOIN {ANOMALIES} a ON a.anomaly_id = fd.detected_id
         UNION ALL
-        SELECT 'not_planted', NULL, a.provider, a.component, a.card_segment, NULL, NULL, NULL, true, a.day, NULL,
+        SELECT 'not_planted', NULL, a.provider, a.component, a.card_segment, NULL, NULL, NULL, NULL, NULL, true, a.day,
+               NULL,
                a.anomaly_id, a.anomaly_type, 1, a.explained_by, a.is_finding, a.explanation
         FROM {ANOMALIES} a
         WHERE a.anomaly_id NOT IN (SELECT detected_id FROM pairs)

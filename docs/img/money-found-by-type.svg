@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="770" height="450" viewBox="0 0 770 450" font-family="Helvetica, Arial, sans-serif" font-size="13">
+<rect width="770" height="450" fill="#ffffff"/>
+<text x="16" y="26" font-size="15" font-weight="bold" fill="#1f2933">Money found by type of billing error (EUR, synthetic data)</text>
+<text x="322" y="59" text-anchor="end" fill="#1f2933">D02 Volume tier not applied to the whole month</text>
+<rect x="330" y="47" width="330" height="18" fill="#2f6f9f"/>
+<text x="666" y="59" fill="#3e4c59">5,750.67</text>
+<text x="322" y="85" text-anchor="end" fill="#1f2933">D05 Monthly minimum charged when not due</text>
+<rect x="330" y="73" width="287" height="18" fill="#2f6f9f"/>
+<text x="623" y="85" fill="#3e4c59">5,000.00</text>
+<text x="322" y="111" text-anchor="end" fill="#1f2933">D13 Payout fee cap not applied</text>
+<rect x="330" y="99" width="107" height="18" fill="#2f6f9f"/>
+<text x="443" y="111" fill="#3e4c59">1,856.47</text>
+<text x="322" y="137" text-anchor="end" fill="#1f2933">D11 FX spread above the cap</text>
+<rect x="330" y="125" width="62" height="18" fill="#2f6f9f"/>
+<text x="398" y="137" fill="#3e4c59">1,083.56</text>
+<text x="322" y="163" text-anchor="end" fill="#1f2933">D10 Volume discount not applied</text>
+<rect x="330" y="151" width="57" height="18" fill="#2f6f9f"/>
+<text x="393" y="163" fill="#3e4c59">998.24</text>
+<text x="322" y="189" text-anchor="end" fill="#1f2933">D07 Card priced in the wrong segment</text>
+<rect x="330" y="177" width="36" height="18" fill="#2f6f9f"/>
+<text x="372" y="189" fill="#3e4c59">623.94</text>
+<text x="322" y="215" text-anchor="end" fill="#1f2933">D09 Chargeback fee above the contract</text>
+<rect x="330" y="203" width="27" height="18" fill="#2f6f9f"/>
+<text x="363" y="215" fill="#3e4c59">465.00</text>
+<text x="322" y="241" text-anchor="end" fill="#1f2933">D06 Same payment charged twice</text>
+<rect x="330" y="229" width="24" height="18" fill="#2f6f9f"/>
+<text x="360" y="241" fill="#3e4c59">413.82</text>
+<text x="322" y="267" text-anchor="end" fill="#1f2933">D01 Markup at the rate before the amendment</text>
+<rect x="330" y="255" width="21" height="18" fill="#2f6f9f"/>
+<text x="357" y="267" fill="#3e4c59">362.27</text>
+<text x="322" y="293" text-anchor="end" fill="#1f2933">D08 Fee on a declined or failed attempt</text>
+<rect x="330" y="281" width="17" height="18" fill="#2f6f9f"/>
+<text x="353" y="293" fill="#3e4c59">298.21</text>
+<text x="322" y="319" text-anchor="end" fill="#1f2933">D04 Markup not credited on a refund</text>
+<rect x="330" y="307" width="8" height="18" fill="#2f6f9f"/>
+<text x="344" y="319" fill="#3e4c59">138.69</text>
+<text x="322" y="345" text-anchor="end" fill="#1f2933">D03 Interchange or scheme fee above cost</text>
+<rect x="330" y="333" width="8" height="18" fill="#2f6f9f"/>
+<text x="344" y="345" fill="#3e4c59">134.37</text>
+<text x="322" y="371" text-anchor="end" fill="#1f2933">D12 FX rate from the wrong hour</text>
+<rect x="330" y="359" width="6" height="18" fill="#2f6f9f"/>
+<text x="342" y="371" fill="#3e4c59">96.27</text>
+<text x="322" y="397" text-anchor="end" fill="#1f2933">D15 Refund fee not billed</text>
+<rect x="330" y="385" width="2" height="18" fill="#c2772c"/>
+<text x="338" y="397" fill="#3e4c59">36.20 under</text>
+<text x="322" y="423" text-anchor="end" fill="#1f2933">D14 Charge with no matching payment</text>
+<rect x="330" y="411" width="2" height="18" fill="#2f6f9f"/>
+<text x="338" y="423" fill="#3e4c59">29.72</text>
+</svg>

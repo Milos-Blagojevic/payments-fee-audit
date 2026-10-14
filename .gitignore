@@ -10,6 +10,7 @@ warehouse/*.duckdb
 warehouse/*.duckdb.wal
 reports/*
 !reports/.gitkeep
+!reports/examples/
 
 # dbt
 dbt/target/

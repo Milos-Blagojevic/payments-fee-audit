@@ -1,0 +1,35 @@
+# Kestrel Payouts: payouts and FX. Illustrative terms; every fee is billed in EUR.
+contract_id: KP-2025-09
+party: provider
+counterparty: kestrel
+name: Kestrel Payouts
+version: 1
+effective_from: 2025-09-01        # version 2 adds the Elixir rail from 2026-04-01
+currency: EUR
+timezone: UTC
+rounding: {mode: half_up, level: transaction}
+dispute_window_days: 45
+terms:
+  - clause: "2.1"
+    kind: payout_fee
+    title: SEPA payout fee
+    rail: sepa
+    fixed_minor: 20
+  - clause: "2.2"
+    kind: payout_fee
+    title: Faster Payments payout fee
+    rail: faster_payments
+    fixed_minor: 30
+  - clause: "2.3"
+    kind: payout_fee
+    title: SWIFT payout fee, a share of the EUR equivalent at mid, with a minimum and a cap
+    rail: swift
+    bps: 10
+    min_minor: 800
+    cap_minor: 4000
+  - clause: "4.1"
+    kind: fx_spread_cap
+    title: FX spread cap against the hourly mid rate at the execution hour
+    benchmark: fx_mid_hourly
+    rate_time: execution_hour
+    caps_bps: {GBP: 40, USD: 40, CHF: 40, PLN: 90}

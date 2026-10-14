@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build verify eval test all clean
+.PHONY: install contracts data build verify eval report test all clean
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -29,10 +29,14 @@ verify:
 eval:
 	$(PYTHON) -m feeaudit.evaluation
 
+# Finance outputs to reports/, the committed sample in reports/examples/, the README blocks and docs/img chart.
+report:
+	$(PYTHON) -m feeaudit.reports
+
 test:
 	$(PYTHON) -m pytest
 
-all: clean contracts data build verify eval
+all: clean contracts data build verify eval report
 
 clean:
 	rm -rf data

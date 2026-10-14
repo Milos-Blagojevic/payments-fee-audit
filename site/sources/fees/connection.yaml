@@ -1,0 +1,6 @@
+# The warehouse built by `make all`. The connector opens it read-only.
+# Source queries read only the marts in schema `main` (fct_*, dim_*) and schema `evaluation`.
+name: fees
+type: duckdb
+options:
+  filename: ../../../warehouse/fees.duckdb

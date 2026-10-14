@@ -1,0 +1,40 @@
+# Brightpay: card payments on blended pricing. Illustrative terms.
+contract_id: BP-2025-07
+party: provider
+counterparty: brightpay
+name: Brightpay
+version: 1
+effective_from: 2025-07-01
+currency: EUR
+timezone: UTC
+rounding: {mode: half_even, level: transaction}
+dispute_window_days: 30
+terms:
+  - clause: "3.1"
+    kind: blended_rate
+    title: All-in fee per payment by card segment; no fee on declined or failed attempts
+    component: transaction_fee
+    segments:
+      eea_consumer: {bps: 140, fixed_minor: 25}
+      other: {bps: 290, fixed_minor: 25}
+    failed_attempts: no_fee
+  - clause: "3.4"
+    kind: volume_discount
+    title: Marginal volume discount on EEA consumer cards, settled monthly
+    component: volume_adjustment
+    segment: eea_consumer
+    basis: monthly_segment_volume
+    tiering: marginal
+    settlement: monthly_adjustment
+    tiers:
+      - {up_to_minor: 150000000, bps: 140}
+      - {up_to_minor: null, bps: 125}
+  - clause: "5.2"
+    kind: refund
+    title: Refund fee; the original fee is not credited
+    fee_minor: 20
+    credit_original_markup: false
+  - clause: "6.3"
+    kind: chargeback_fee
+    title: Chargeback fee
+    amount_minor: 2000

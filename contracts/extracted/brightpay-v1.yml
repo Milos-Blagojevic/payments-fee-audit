@@ -1,0 +1,52 @@
+# Extracted by claude-opus-5-5 from contracts/text/brightpay-v1.md on 2026-10-14T16:58:13Z.
+# NOT APPROVED: every term has approved: false, so feeaudit.contracts refuses this file. Review each term
+# against the text, set approved: true, then promote the file (docs/llm-extraction.md).
+contract_id: BP-2025-07
+party: provider
+counterparty: brightpay
+name: Brightpay
+version: 1
+effective_from: 2025-07-01
+currency: EUR
+timezone: UTC
+rounding:
+  mode: half_even
+  level: transaction
+dispute_window_days: 30
+terms:
+- clause: '3.1'
+  kind: blended_rate
+  title: All-inclusive service fee by card segment
+  approved: false
+  segments:
+    eea_consumer:
+      bps: 140
+      fixed_minor: 25
+    other:
+      bps: 290
+      fixed_minor: 25
+  failed_attempts: no_fee
+- clause: '3.4'
+  kind: volume_discount
+  title: EEA consumer card volume discount above EUR 1,500,000
+  approved: false
+  segment: eea_consumer
+  basis: monthly_segment_volume
+  tiering: marginal
+  settlement: monthly_adjustment
+  tiers:
+  - up_to_minor: 150000000
+    bps: 140
+  - up_to_minor: null
+    bps: 125
+- clause: '5.2'
+  kind: refund
+  title: Refund fee, no credit of original service fee
+  approved: false
+  fee_minor: 20
+  credit_original_markup: false
+- clause: '6.3'
+  kind: chargeback_fee
+  title: Chargeback handling fee
+  approved: false
+  amount_minor: 2000

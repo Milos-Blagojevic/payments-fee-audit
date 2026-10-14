@@ -48,7 +48,8 @@ a string, for example "4.2". title: a short description of the clause. Definitio
 invoicing and dispute clauses are not terms; they give the header fields.
 - Use only what the text states.
 
-Term kinds:
+Term kinds (parameters_json: a JSON object with the parameters of the term's kind, exactly as the kind's \
+parameter schema at the end defines them):
 - pass_through: interchange and scheme fees charged at cost against a reference table (reference: the \
 table's designation).
 - markup_bps_tiered: a markup in basis points by band of monthly processed volume, where the band reached \
@@ -75,13 +76,7 @@ class ExtractionError(Exception):
     """The call happened but produced no usable contract (it is still recorded and paid for)."""
 
 
-def extraction_schema(schema_path=SCHEMA_PATH):
-    """The JSON schema of one provider contract version, in the subset structured outputs accept.
-
-    Derived from contract_schema.json: `$ref`s inlined, the if/then dispatch on `kind` turned into an `anyOf` of
-    the provider kinds (payout_fee split into its fixed and percentage forms), `effective_to`, `component` and
-    `approved` left out (derived, redundant or set by the extractor), unsupported constraints dropped.
-    """
+def _contract_schema(schema_path=SCHEMA_PATH):
     full = json.loads(Path(schema_path).read_text())
     defs = full["$defs"]
 
@@ -94,31 +89,66 @@ def extraction_schema(schema_path=SCHEMA_PATH):
             return [inline(v) for v in node]
         return node
 
-    variants = []
-    for kind in defs["provider_term"]["properties"]["kind"]["enum"]:
-        term = inline(defs[f"kind_{kind}"])
-        for key in ("component", "approved"):
-            term["properties"].pop(key, None)
-        options = term.pop("oneOf", None)
-        if options is None:
-            variants.append(term)
-            continue
-        optional = set(term["properties"]) - set(term["required"])
-        for option in options:
-            variant = copy.deepcopy(term)
-            for key in optional - set(option["required"]):
-                del variant["properties"][key]
-            variant["required"] = term["required"] + option["required"]
-            variants.append(variant)
-    properties = {k: inline(v) for k, v in full["properties"].items() if k != "effective_to"}
+    return full, defs, inline
+
+
+def extraction_schema(schema_path=SCHEMA_PATH):
+    """The JSON schema of one provider contract version, in the subset structured outputs accept.
+
+    The API compiles the schema to a grammar with limits on its size and on nullable/union parameters, and a union
+    of the ten term kinds exceeds them. So the header fields are constrained in full, and each term's `clause`,
+    `kind` (enum) and `title`; its parameters come as a JSON string (`parameters_json`, shaped as `kind_parameters`
+    describes in the prompt). `from_extraction` parses it and the full contract schema validates the result.
+    `effective_to`, `component` and `approved` are left out (derived, redundant or set by the extractor).
+    """
+    full, defs, inline = _contract_schema(schema_path)
+    kinds = defs["provider_term"]["properties"]["kind"]["enum"]
+    term = _object({"clause": {"type": "string"}, "kind": {"enum": kinds}, "title": {"type": "string"},
+                    "parameters_json": {"type": "string"}})
+    properties = {k: _strip(inline(v)) for k, v in full["properties"].items() if k != "effective_to"}
     properties["party"] = {"const": "provider"}
-    properties["terms"] = {"type": "array", "minItems": 1, "items": {"anyOf": variants}}
-    return _strip({
+    properties["terms"] = {"type": "array", "minItems": 1, "items": term}
+    return {
         "type": "object",
         "required": full["required"],
         "properties": properties,
         "additionalProperties": False,
-    })
+    }
+
+
+def kind_parameters(schema_path=SCHEMA_PATH):
+    """{kind: JSON schema of its parameters} from contract_schema.json, for the prompt."""
+    _, defs, inline = _contract_schema(schema_path)
+    out = {}
+    for kind in defs["provider_term"]["properties"]["kind"]["enum"]:
+        term = inline(defs[f"kind_{kind}"])
+        params = {k: v for k, v in term["properties"].items() if k not in _TERM_KEYS}
+        schema = {"type": "object", "properties": params,
+                  "required": [k for k in term["required"] if k not in _TERM_KEYS]}
+        if "oneOf" in term:
+            schema["oneOf"] = term["oneOf"]
+        out[kind] = schema
+    return out
+
+
+_TERM_KEYS = {"clause", "kind", "title", "component", "approved"}
+
+
+def _object(properties):
+    return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
+
+
+def from_extraction(term):
+    """A contract term from the extraction shape: `parameters_json` parsed and merged into the term. Unparseable
+    parameters stay as `parameters_json`, which the contract schema then rejects."""
+    out = {k: term.get(k) for k in ("clause", "kind", "title")}
+    try:
+        params = json.loads(term.get("parameters_json") or "{}")
+    except json.JSONDecodeError:
+        params = None
+    if not isinstance(params, dict):
+        return {**out, "parameters_json": term.get("parameters_json")}
+    return {**out, **{k: v for k, v in params.items() if k not in out}}
 
 
 def _strip(node):
@@ -172,7 +202,8 @@ def build_request(name, model, config, text_dir=TEXT_DIR):
     return {
         "model": model,
         "max_tokens": config.max_tokens,
-        "system": SYSTEM_PROMPT,
+        "system": f"{SYSTEM_PROMPT}\nParameter schema per kind:\n"
+                  f"{json.dumps(kind_parameters(), indent=1, sort_keys=True)}\n",
         "messages": [{"role": "user", "content": f"{documents}\n\n{task}"}],
         "output_config": {"effort": config.effort, "format": {"type": "json_schema", "schema": extraction_schema()}},
     }
@@ -274,7 +305,7 @@ def extract(name, client, config, text_dir=TEXT_DIR, out_dir=OUT_DIR, now=None):
             doc, error = None, "response JSON has no terms list"
     problems = []
     if doc is not None:
-        doc["terms"] = [_mark_unapproved(t) if isinstance(t, dict) else t for t in doc["terms"]]
+        doc["terms"] = [_mark_unapproved(from_extraction(t)) if isinstance(t, dict) else t for t in doc["terms"]]
         problems = [f"{p}: {m}" for p, m in validate_contract(doc)]
     record["validation_errors"] = problems
     record["error"] = error

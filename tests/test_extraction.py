@@ -12,10 +12,12 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from feeaudit.contracts import ContractError, load_contract_file
+from feeaudit.contracts import ContractError, load_contract_file, validate_contract
 from feeaudit.extraction.__main__ import main
 from feeaudit.extraction.budget import BudgetError, call_cost, load_config
-from feeaudit.extraction.extract import ExtractionError, build_request, extract, extraction_schema, prompt_sha256
+from feeaudit.extraction.extract import (
+    ExtractionError, build_request, extract, extraction_schema, from_extraction, kind_parameters, prompt_sha256,
+)
 from feeaudit.extraction.score import compare, score
 
 REPO = Path(__file__).resolve().parents[1]
@@ -57,7 +59,9 @@ class FakeMessages:
 
 
 def _client(doc=None, **kwargs):
-    text = json.dumps(doc if doc is not None else _truth("northgate-v2"))
+    """A fake client answering with `doc` (a contract version, default northgate-v2) in the extraction shape."""
+    doc = doc if doc is not None else _truth("northgate-v2")
+    text = json.dumps({**doc, "terms": [_as_extracted(t) for t in doc["terms"]]})
     return SimpleNamespace(messages=FakeMessages(text, **kwargs))
 
 
@@ -200,10 +204,34 @@ def test_extraction_schema_uses_only_supported_keywords():
         assert node.get("minItems", 0) <= 1
 
 
+def _as_extracted(term):
+    """A contract term in the extraction shape the model returns."""
+    params = {k: v for k, v in term.items() if k not in ("clause", "kind", "title")}
+    return {"clause": term["clause"], "kind": term["kind"], "title": term["title"],
+            "parameters_json": json.dumps(params)}
+
+
 @pytest.mark.parametrize("path", sorted(PROVIDERS.glob("*.yml")), ids=lambda p: p.stem)
-def test_ground_truth_fits_the_extraction_schema(path):
-    validator = Draft202012Validator(extraction_schema())
-    assert [e.message for e in validator.iter_errors(_truth(path.stem))] == []
+def test_ground_truth_round_trips_through_the_extraction_schema(path):
+    schema = extraction_schema()
+    truth = _truth(path.stem)
+    extracted = {**truth, "terms": [_as_extracted(t) for t in truth["terms"]]}
+    assert [e.message for e in Draft202012Validator(schema).iter_errors(extracted)] == []
+    assert [from_extraction(t) for t in extracted["terms"]] == truth["terms"]
+
+
+@pytest.mark.parametrize("path", sorted(PROVIDERS.glob("*.yml")), ids=lambda p: p.stem)
+def test_ground_truth_parameters_fit_the_prompted_kind_schemas(path):
+    kinds = kind_parameters()
+    for term in _truth(path.stem)["terms"]:
+        params = {k: v for k, v in term.items() if k not in ("clause", "kind", "title")}
+        assert [e.message for e in Draft202012Validator(kinds[term["kind"]]).iter_errors(params)] == []
+
+
+def test_unparseable_parameters_are_rejected_by_the_contract_schema():
+    term = from_extraction({"clause": "6.1", "kind": "chargeback_fee", "title": "t", "parameters_json": "{oops"})
+    doc = {**_truth("northgate-v1"), "terms": [term]}
+    assert any("parameters_json" in message for _, message in validate_contract(doc))
 
 
 # ---- scoring ----------------------------------------------------------------

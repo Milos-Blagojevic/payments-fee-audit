@@ -1,0 +1,278 @@
+version: 2
+
+# The MetricFlow definitions of M01–M10: the only definitions. METRICS.md is generated from them
+# (`make report`) and the metrics MCP server (`python -m metrics_mcp serve`) serves them. Changing a
+# metric, its measure, its semantic model or its backing model's SQL changes its fingerprint: bump
+# `meta.version` and run `python -m metrics_mcp lock --update` (A50–A53).
+
+models:
+  - name: metricflow_time_spine
+    description: One row per day from 2025 to 2027; MetricFlow's time spine.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+        data_tests: [unique, not_null]
+
+semantic_models:
+  - name: provider_costs
+    description: Billed provider fees per provider × UTC month × fee component × card segment.
+    model: ref('fct_provider_costs')
+    defaults:
+      agg_time_dimension: cost_month
+    entities:
+      - name: provider_cost
+        type: primary
+        expr: provider_cost_id
+      - name: provider
+        type: foreign
+      - name: card_segment
+        type: foreign
+    dimensions:
+      - name: cost_month
+        type: time
+        expr: month
+        type_params:
+          time_granularity: month
+      - name: component
+        type: categorical
+    measures:
+      - name: provider_fees_minor
+        description: Billed provider fees net of credits, minor units.
+        agg: sum
+        expr: billed_minor
+
+  - name: processed_volumes
+    description: Succeeded card payment volume per provider × UTC month × card segment.
+    model: ref('fct_processed_volume')
+    defaults:
+      agg_time_dimension: volume_month
+    entities:
+      - name: processed_volume
+        type: primary
+        expr: processed_volume_id
+      - name: provider
+        type: foreign
+      - name: card_segment
+        type: foreign
+    dimensions:
+      - name: volume_month
+        type: time
+        expr: month
+        type_params:
+          time_granularity: month
+    measures:
+      - name: processed_volume_minor
+        description: Succeeded card payment amounts, minor units.
+        agg: sum
+        expr: volume_minor
+
+  - name: providers
+    description: One row per provider with a contract.
+    model: ref('dim_providers')
+    entities:
+      - name: provider
+        type: primary
+    dimensions:
+      - name: pricing_model
+        type: categorical
+
+  - name: dispute_queue
+    description: One row per provider invoice with rule findings.
+    model: ref('fct_dispute_queue')
+    defaults:
+      agg_time_dimension: statement_month
+    entities:
+      - name: dispute_queue_item
+        type: primary
+        expr: dispute_queue_id
+      - name: provider
+        type: foreign
+    dimensions:
+      - name: statement_month
+        type: time
+        type_params:
+          time_granularity: month
+      - name: status
+        type: categorical
+    measures:
+      - name: overcharge_minor
+        description: Positive rule finding differences, minor units.
+        agg: sum
+      - name: undercharge_minor
+        description: Negative rule finding differences, minor units.
+        agg: sum
+      - name: recoverable_minor
+        description: Overcharges whose dispute deadline is on or after the as_of_date var, minor units.
+        agg: sum
+
+  - name: fx_conversions
+    description: One row per non-EUR payout Kestrel converted.
+    model: ref('fct_fx_conversions')
+    defaults:
+      agg_time_dimension: executed_at
+    entities:
+      - name: payout
+        type: primary
+        expr: payout_id
+      - name: client
+        type: foreign
+        expr: client_id
+    dimensions:
+      - name: executed_at
+        type: time
+        expr: executed_at_utc
+        type_params:
+          time_granularity: day
+      - name: currency
+        type: categorical
+      - name: rail
+        type: categorical
+    measures:
+      - name: fx_spread_cost_minor
+        description: EUR debited − EUR equivalent at the execution-hour mid, minor units.
+        agg: sum
+        expr: spread_cost_minor
+
+  - name: client_margins
+    description: Client billing, provider costs and margin per client × UTC month.
+    model: ref('fct_client_margin')
+    defaults:
+      agg_time_dimension: margin_month
+    entities:
+      - name: client_month
+        type: primary
+        expr: client_margin_id
+      - name: client
+        type: foreign
+        expr: client_id
+    dimensions:
+      - name: margin_month
+        type: time
+        expr: month
+        type_params:
+          time_granularity: month
+    measures:
+      - name: revenue_leakage_minor
+        description: Expected − actual client billing, minor units.
+        agg: sum
+      - name: margin_minor
+        description: Client billing − allocated provider fees − FX spread cost, minor units.
+        agg: sum
+
+metrics:
+  - name: processed_volume
+    label: Processed volume
+    description: Sum of succeeded card payment amounts in the ledger, by event date in UTC.
+    type: simple
+    type_params:
+      measure: processed_volume_minor
+    config:
+      meta: {metric_id: M01, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests]}
+
+  - name: provider_fees
+    label: Provider fees
+    description: >
+      Sum of billed provider charges, net of credits (refund markup credits, volume adjustments); FX debits are not
+      fees.
+    type: simple
+    type_params:
+      measure: provider_fees_minor
+    config:
+      meta: {metric_id: M02, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests]}
+
+  - name: effective_rate
+    label: Effective rate
+    description: M02 ÷ M01, a ratio of sums at the requested grain (never an average of row rates).
+    type: ratio
+    type_params:
+      numerator: provider_fees
+      denominator: processed_volume
+    config:
+      meta: {metric_id: M03, version: 1, owner: finance-data, certified: true, unit: bps,
+             requires: [certified, lock, dbt_tests]}
+
+  - name: markup_rate
+    label: Markup rate
+    description: >
+      Billed acquirer markup ÷ M01, for providers on interchange++ pricing only; a ratio of sums at the requested
+      grain.
+    type: ratio
+    type_params:
+      numerator:
+        name: provider_fees
+        filter: "{{ Dimension('provider_cost__component') }} = 'markup'"
+      denominator: processed_volume
+    filter: "{{ Dimension('provider__pricing_model') }} = 'interchange_plus_plus'"
+    config:
+      meta: {metric_id: M04, version: 1, owner: finance-data, certified: true, unit: bps,
+             requires: [certified, lock, dbt_tests]}
+
+  - name: overcharge
+    label: Overcharge
+    description: Sum of positive `difference_minor` of rule findings, excluding `rounding`.
+    type: simple
+    type_params:
+      measure: overcharge_minor
+    config:
+      meta: {metric_id: M05, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests, differential]}
+
+  - name: undercharge
+    label: Undercharge
+    description: >
+      Sum of negative `difference_minor` of rule findings, excluding `rounding` (the provider billed too little;
+      reported, never disputed).
+    type: simple
+    type_params:
+      measure: undercharge_minor
+    config:
+      meta: {metric_id: M06, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests, differential]}
+
+  - name: recoverable
+    label: Recoverable
+    description: M05 for findings whose dispute deadline is on or after the `as_of_date` var (A22).
+    type: simple
+    type_params:
+      measure: recoverable_minor
+    config:
+      meta: {metric_id: M07, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests, differential]}
+
+  - name: fx_spread_cost
+    label: FX spread cost
+    description: EUR debited − EUR equivalent at the execution-hour mid.
+    type: simple
+    type_params:
+      measure: fx_spread_cost_minor
+    config:
+      meta: {metric_id: M08, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests, differential]}
+
+  - name: revenue_leakage
+    label: Revenue leakage
+    description: >
+      Expected client billing under the pricing agreement − actual client billing (invoice lines, net of
+      discounts); positive = Fernway billed too little.
+    type: simple
+    type_params:
+      measure: revenue_leakage_minor
+    config:
+      meta: {metric_id: M09, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests]}
+
+  - name: client_margin
+    label: Client margin
+    description: >
+      Actual client billing − provider fees allocated to the client's events (monthly charges by volume share, A09,
+      A32) − M08 of the client's payouts.
+    type: simple
+    type_params:
+      measure: margin_minor
+    config:
+      meta: {metric_id: M10, version: 1, owner: finance-data, certified: true, unit: EUR minor units,
+             requires: [certified, lock, dbt_tests, differential]}

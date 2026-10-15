@@ -18,6 +18,7 @@ from feeaudit.extraction.score import accuracy
 from feeaudit.reports import client, finance
 from feeaudit.reports.common import dbt_var, eur, label, md_table, rows
 from feeaudit.verify import DBT_TABLE, REFERENCE_TABLE, compare
+from metrics_mcp import docs as metrics_docs
 
 BLOCK = re.compile(r"(<!-- generated:([\w-]+) -->\n)(.*?)(<!-- /generated -->)", re.DOTALL)
 
@@ -184,7 +185,7 @@ def block_contract_to_rule(con) -> str:
 def block_lineage() -> str:
     manifest = json.loads(MANIFEST.read_text())
     nodes = {k: v for k, v in manifest["nodes"].items() if v["resource_type"] in ("model", "seed")}
-    layers = {"staging": [], "intermediate": [], "marts": [], "seeds": []}
+    layers = {"staging": [], "intermediate": [], "marts": [], "semantic": [], "seeds": []}
     for key, node in nodes.items():
         layer = "seeds" if node["resource_type"] == "seed" else node["fqn"][1]
         layers[layer].append(node["name"])
@@ -194,7 +195,7 @@ def block_lineage() -> str:
                       for dep in node.get("depends_on", {}).get("nodes", []) if dep.startswith("source.")})
     out = ["```mermaid", "flowchart LR"]
     out.append(f"  raw[(\"sources: {', '.join(sources)}\")]")
-    for layer in ("seeds", "staging", "intermediate", "marts"):
+    for layer in ("seeds", "staging", "intermediate", "marts", "semantic"):
         if layers[layer]:
             out.append(f"  subgraph {layer}")
             out += [f"    {name}" for name in sorted(layers[layer])]
@@ -401,6 +402,8 @@ def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
         "examples": block_examples(con, finance.example_pack(con)),
         "revenue-side": block_revenue_side(con),
         "extraction": block_extraction(con),
+        # MetricFlow opens its own read-only connection: `con` must use the same configuration (checks.READ_ONLY).
+        "metrics-mcp": metrics_docs.readme_example(),
     }
 
 

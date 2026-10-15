@@ -2,7 +2,10 @@
 #   uv pip compile requirements.in --python-version 3.12 --no-header --no-annotate -o requirements.txt
 dbt-core
 dbt-duckdb
+dbt-metricflow==0.15.0
 duckdb
 jsonschema
+mcp==2.3.0
+metricflow==0.213.0
 numpy
 pyyaml

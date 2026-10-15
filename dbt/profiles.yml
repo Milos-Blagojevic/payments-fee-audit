@@ -6,3 +6,12 @@ fee_audit:
       # Relative to the repository root: the Makefile runs dbt from there.
       path: warehouse/fees.duckdb
       threads: 4
+    # The metrics MCP server (metrics_mcp/): MetricFlow queries the same warehouse, opened read-only and closed after
+    # every query so a running server never holds the file while `make all` rebuilds it.
+    metrics:
+      type: duckdb
+      path: warehouse/fees.duckdb
+      threads: 1
+      keep_open: false
+      config_options:
+        access_mode: READ_ONLY

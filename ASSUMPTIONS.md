@@ -232,3 +232,66 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Why:** a rate shift the contract or a rule already accounts for needs no second finding; an anomaly is a lead to investigate, not a claim with a clause behind it.
 - **Alternatives:** a finding for every flagged day; one finding per anomaly episode instead of per day.
 - **Set in:** `dbt/models/marts/fct_anomalies.sql`, `dbt/models/marts/fct_findings.sql`.
+
+## A50 What a metric's fingerprint covers
+
+- **Default:** a stable hash (SHA-256 of canonical JSON, first 16 hex digits) of the metric's resolved definition in `dbt/target/semantic_manifest.json`: its spec and filters, the specs of its input metrics, the measures it uses, the entities, dimensions, defaults and node relation of their semantic models and of the semantic models those join to (`providers` for every provider metric), the `unit` in its meta, and the SQL checksum (`manifest.json`) of every dbt model behind those semantic models. Descriptions, labels and the rest of `meta` (owner, `certified`, `requires`, the version itself) are left out.
+- **Why:** everything that can change a served number, the allowed dimensions or the unit changes the fingerprint; editing prose or ownership does not force a new version.
+- **Alternatives:** include the SQL of every upstream model, which would version all ten metrics on any staging change; hash the YAML file, which versions every metric on any edit. Upstream changes are covered by the `dbt_tests` and `differential` checks instead (A52). An upgrade of dbt or MetricFlow that serialises the spec differently changes fingerprints too, and is reviewed like a definition change.
+- **Set in:** `metrics_mcp/catalog.py`.
+
+## A51 One live version per metric
+
+- **Default:** each metric's `meta.version` starts at 1; `metrics.lock.yml` (committed) holds the version and fingerprint of every metric with a `metric_id`. `python -m metrics_mcp lock --check` (in `make all`) fails when a fingerprint changed but the version did not ("bump the version"), when the version moved but the lock did not ("run lock --update"), when a version skips, and when a metric is missing from or extra in the lock. `lock --update` rewrites the lock and accepts a changed definition only at the locked version + 1. The server serves only the current version; `query_metric` with another `expected_version` is refused (`stale_version`).
+- **Why:** an agent's cached understanding of a metric must never silently mean something else; one live version keeps the server and the doc simple.
+- **Alternatives:** serve old versions side by side (needs old definitions and old data kept queryable); semantic versioning with compatible changes.
+- **Set in:** `metrics_mcp/lock.py`, `metrics.lock.yml`, `Makefile` (`metrics-lock`).
+
+## A52 Which checks each metric requires
+
+- **Default:** every metric requires `certified`, `lock` and `dbt_tests` (the server evaluates these three even if `meta.requires` omits one, and `lock --check` fails on such a definition). `differential` is required by M05, M06, M07 (billed − expected over rule findings), M08 (the spread is measured against the EUR equivalent at mid from `int_expected_charges`) and M10 (subtracts M08). M01–M04 are billed fees and volume, and M09 compares client billing with `int_expected_client_billing`, which the differential check does not cover. A metric's backing models are the dbt models of its measures' semantic models and of the semantic models they join to.
+- **Why:** a check belongs where its failure would make the number wrong; requiring `differential` everywhere would refuse the volume when only the expected charges are in doubt.
+- **Alternatives:** require every check for every metric; derive `differential` from lineage (every provider metric reads `int_charge_comparison`, which joins the expected charges, so lineage alone would require it for M02 too).
+- **Set in:** `meta.requires` in `dbt/models/semantic/_semantic.yml`; `metrics_mcp/checks.py`; `METRICS.md`.
+
+## A53 dbt tests a metric depends on
+
+- **Default:** every dbt data or unit test whose `depends_on` touches a backing model of the metric or any node upstream of it (models, seeds, sources) must have status `pass` in `dbt/target/run_results.json`; `warn`, `fail`, `error`, `skipped` or a missing result fails the check. `differential` additionally requires the last `make verify` (recorded in `verification.check_results`) to have run after the last build.
+- **Why:** a failing test anywhere upstream can mean a wrong number; a test that did not run proves nothing.
+- **Alternatives:** only the tests on the backing model itself; accept `warn`.
+- **Set in:** `metrics_mcp/checks.py`, `metrics_mcp/catalog.py` (`tests_for`), `feeaudit/verify.py` (`record`).
+
+## A54 Refusal policy
+
+- **Default:** fail closed. The server answers only when the metric is certified, the request is valid and every required check passes; otherwise it returns `status: refused` with a reason (`unknown_metric`, `not_certified`, `stale_version`, `invalid_request`, `check_failed`), the failed checks with their details, and the fix, and no number. An unexpected error returns `status: error`, also without a number. Every call, answered or not, is appended to `warehouse/metrics_mcp_audit.jsonl`.
+- **Why:** an agent that receives a number repeats it; a number that failed a check is worse than none.
+- **Alternatives:** answer with a warning attached (agents drop warnings); serve the last good result (needs a result cache and staleness rules).
+- **Set in:** `metrics_mcp/service.py`.
+
+## A55 No freshness check
+
+- **Default:** the server does not refuse because the data is old.
+- **Why:** the data is a closed synthetic period (January to June 2026) and `as_of_date` is a fixed dbt var (A22), so age says nothing about correctness; every answer states `as_of_date` and `built_at`, and `differential` already refuses a verification older than the build.
+- **Alternatives:** refuse when the last build or the ledger watermark is older than a threshold, which a deployment on live data would need.
+- **Set in:** `metrics_mcp/checks.py` (absence of such a check).
+
+## A56 What agents may send
+
+- **Default:** a metric id, `group_by` names and filters `{dimension, op, value}`, nothing else. Names must be in MetricFlow's allowed group-by set for the metric (foreign entities such as `provider`, categorical dimensions such as `provider_cost__component`, and `metric_time` at a grain from `time_grain`); row-level primary entities are not offered. Operators: `eq`, `ne`, `in`, `not_in` on every dimension, plus `gt`, `gte`, `lt`, `lte` on `metric_time`. Values are strings of letters, digits, space and `_ . : @ -` (at most 64, at most 100 in a list), or ISO dates for `metric_time`; they are quoted again before MetricFlow builds its where clause. `limit` is 1 to 10,000 (default 1,000) and a response says when it was truncated.
+- **Why:** structured requests leave no room for SQL or template injection while covering the questions finance asks of these metrics.
+- **Alternatives:** accept MetricFlow where-clause strings (an SQL surface); bind parameters (the dbt adapter does not support them).
+- **Set in:** `metrics_mcp/service.py`.
+
+## A57 Basis points from MetricFlow ratios
+
+- **Default:** M03 and M04 are MetricFlow ratio metrics, so the ratio of sums is computed by MetricFlow, in DOUBLE; the server multiplies it by 10,000 and rounds half up to 4 decimal places, the scale of `effective_rate_bps` in the marts, and returns a decimal string. A ratio with no denominator (payout fees grouped by card segment, a provider without card volume) is `null`.
+- **Why:** MetricFlow renders a ratio as `CAST(numerator AS DOUBLE) / CAST(NULLIF(denominator, 0) AS DOUBLE)`; a double carries about 16 significant digits, ample for 4 decimals of basis points, and the tests compare the result with the exact decimal ratio of the marts' sums.
+- **Alternatives:** query numerator and denominator and divide in Python with exact decimals (then MetricFlow no longer computes the ratio); a derived metric with integer arithmetic in its expression.
+- **Set in:** `metrics_mcp/service.py` (`_bps`).
+
+## A58 Processed volume and pricing model for the semantic layer
+
+- **Default:** M01 is served from `fct_processed_volume` (provider × UTC month × card segment), which `fct_provider_costs` now reads its volumes from; `fct_provider_costs.volume_minor` repeats the volume on every component row and cannot be summed. M04's denominator is restricted to providers whose contract has a tiered markup (`dim_providers.pricing_model = 'interchange_plus_plus'`). Provider and card segment are entities shared by the cost and volume semantic models, so M03 and M04 group by provider, card segment, pricing model and month, but not by fee component (volume has no component).
+- **Why:** a ratio of sums needs each sum at its own grain; one volume table keeps M01 implemented once.
+- **Alternatives:** a measure over `fct_provider_costs` with a "first row of the segment" flag; a hard-coded provider filter for M04.
+- **Set in:** `dbt/models/marts/fct_processed_volume.sql`, `dbt/models/marts/dim_providers.sql`, `dbt/models/semantic/_semantic.yml`.

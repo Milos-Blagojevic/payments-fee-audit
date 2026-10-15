@@ -10,6 +10,7 @@ import pytest
 
 from feeaudit.reports import finance, readme, trace
 from feeaudit.reports.common import eur
+from metrics_mcp.checks import READ_ONLY
 
 DB = Path("warehouse/fees.duckdb")
 AS_OF = "2026-07-15"
@@ -19,7 +20,8 @@ pytestmark = pytest.mark.skipif(not DB.exists(), reason="run `make all` to build
 
 @pytest.fixture(scope="module")
 def con():
-    with duckdb.connect(str(DB), read_only=True) as connection:
+    # The README block `metrics-mcp` queries through MetricFlow, which connects with this configuration.
+    with duckdb.connect(str(DB), config=READ_ONLY) as connection:
         yield connection
 
 

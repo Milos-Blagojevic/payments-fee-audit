@@ -34,20 +34,12 @@ costs as (
     group by all
 ),
 
--- M01 by provider × UTC month × card segment; rows without a card segment relate to the provider's whole volume.
+-- M01 (fct_processed_volume) by provider × UTC month × card segment; rows without a card segment relate to the
+-- provider's whole volume.
 volumes as (
     select provider, month, card_segment, sum(volume_minor) over (partition by provider, month) as provider_volume_minor,
         volume_minor
-    from (
-        select
-            provider,
-            cast(date_trunc('month', event_timestamp_utc) as date) as month,
-            card_segment,
-            sum(amount_minor) as volume_minor
-        from {{ ref('int_ledger_events') }}
-        where event_type = 'payment' and payment_status = 'succeeded'
-        group by all
-    )
+    from {{ ref('fct_processed_volume') }}
 ),
 
 provider_volumes as (

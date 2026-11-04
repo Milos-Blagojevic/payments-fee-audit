@@ -189,6 +189,7 @@ flowchart LR
   end
   subgraph marts
     dim_contract_terms
+    dim_providers
     fct_anomalies
     fct_client_billing_findings
     fct_client_margin
@@ -196,14 +197,20 @@ flowchart LR
     fct_findings
     fct_fx_conversions
     fct_invoice_reconciliation
+    fct_processed_volume
     fct_provider_comparison
     fct_provider_costs
   end
+  subgraph semantic
+    metricflow_time_spine
+  end
   raw --> staging
+  dim_contract_terms --> dim_providers
   fct_anomalies --> fct_findings
   fct_findings --> fct_dispute_queue
   fct_findings --> fct_invoice_reconciliation
   fct_fx_conversions --> fct_client_margin
+  fct_processed_volume --> fct_provider_costs
   int_charge_comparison --> fct_anomalies
   int_charge_comparison --> fct_findings
   int_charge_comparison --> fct_fx_conversions
@@ -226,8 +233,8 @@ flowchart LR
   int_ledger_events --> fct_anomalies
   int_ledger_events --> fct_client_margin
   int_ledger_events --> fct_fx_conversions
+  int_ledger_events --> fct_processed_volume
   int_ledger_events --> fct_provider_comparison
-  int_ledger_events --> fct_provider_costs
   int_ledger_events --> int_charge_comparison
   int_ledger_events --> int_daily_component_rates
   int_ledger_events --> int_expected_charges
@@ -471,6 +478,115 @@ The YAML contracts above are written by hand. In practice terms arrive as PDFs a
 | NG-2025-01 | 2 | 34 / 34 | 100.0% |
 <!-- /generated -->
 
+## Metrics for agents (MCP)
+
+An AI agent asked "how much can we still recover from Northgate?" should answer with the number finance signs off, not one it derived with its own SQL. `metrics_mcp/` is a small [MCP](https://modelcontextprotocol.io) server that gives agents the ten metrics of [METRICS.md](METRICS.md) and nothing else, under four rules:
+
+1. **One definition.** Every metric is a MetricFlow semantic definition over the marts in `dbt/models/semantic/_semantic.yml`. METRICS.md is generated from it, and the server compiles every query from it.
+2. **No SQL from agents.** The tools take a metric id, group-by dimensions and structured filters (`{dimension, op, value}`). Dimensions must be ones MetricFlow allows for the metric, values are type-checked and quoted, and anything else is rejected. MetricFlow writes the SQL and runs it on a read-only connection.
+3. **One live version.** Each metric has a version, and `metrics.lock.yml` pins the fingerprint of its definition. A definition changed without a version bump fails `make all`; the server serves only the current version and refuses a request that expects another (`expected_version`).
+4. **Fail closed.** Before answering, the server checks that the metric is certified, that it matches the lock, that every dbt test on its lineage passed in the last build and, for the metrics built on expected charges, that the last `make verify` passed. Any failure is a refusal with the reason and the fix, never a number.
+
+The tools are `list_metrics(search?)`, `describe_metric(metric_id)`, `get_dimensions(metric_id)`, `query_metric(metric_id, group_by?, filters?, time_grain?, limit?, expected_version?)` and `metric_health(metric_id)`. Money comes back as exact integers in minor units and rates as decimal strings in basis points; every answer carries the metric's version, the `as_of_date`, the build time, the checks it passed and a `query_hash`. Every call is appended to `warehouse/metrics_mcp_audit.jsonl` (git-ignored).
+
+On a warehouse built by `make all`:
+
+```bash
+.venv/bin/python -m metrics_mcp serve         # the MCP server, on stdio
+.venv/bin/python -m metrics_mcp lock --check  # also run by make all
+```
+
+To register it with Claude Code, from the repository root:
+
+```bash
+claude mcp add fee-metrics --env PYTHONPATH="$PWD" -- "$PWD/.venv/bin/python" -m metrics_mcp serve
+```
+
+or with Claude Desktop, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "fee-metrics": {
+      "command": "/path/to/payments-fee-audit/.venv/bin/python",
+      "args": ["-m", "metrics_mcp", "serve"],
+      "env": {"PYTHONPATH": "/path/to/payments-fee-audit"}
+    }
+  }
+}
+```
+
+To change a metric, edit its definition (or the SQL of a model behind it), bump `meta.version` by one, run `make build`, then `python -m metrics_mcp lock --update`, and commit the lock with the change.
+
+<!-- generated:metrics-mcp -->
+Request, `query_metric`:
+
+```json
+{"metric_id": "M07", "group_by": ["provider"]}
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "metric_id": "M07",
+  "name": "recoverable",
+  "version": 1,
+  "unit": "EUR minor units",
+  "group_by": [
+    "provider"
+  ],
+  "time_grain": null,
+  "filters": [],
+  "rows": [
+    {
+      "provider": "brightpay",
+      "value": 30932
+    },
+    {
+      "provider": "kestrel",
+      "value": 64014
+    },
+    {
+      "provider": "northgate",
+      "value": 337067
+    }
+  ],
+  "row_count": 3,
+  "truncated": false,
+  "as_of_date": "2026-07-15",
+  "built_at": "<time of the last dbt build>",
+  "checks": {
+    "certified": true,
+    "lock": true,
+    "dbt_tests": true,
+    "differential": true
+  },
+  "query_hash": "247af2691d96562b"
+}
+```
+
+The same request for another version is refused, without a number:
+
+```json
+{"metric_id": "M07", "group_by": ["provider"], "expected_version": 2}
+```
+
+```json
+{
+  "status": "refused",
+  "metric_id": "M07",
+  "version": 1,
+  "reason": "stale_version",
+  "message": "expected version 2, but M07 is served only at its current version 1",
+  "failed_checks": [],
+  "errors": [],
+  "fix": "re-read describe_metric('M07') and retry with expected_version=1"
+}
+```
+<!-- /generated -->
+
 ## Limits and next steps
 
 - **Illustrative rates.** The interchange and scheme fee table and every contract are made up, realistic in shape and order of magnitude only. Real interchange depends on far more than scheme, card type and region.
@@ -485,11 +601,11 @@ Requires Python 3.12.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-make all     # clean, contracts, data, build, verify, eval, extraction-score, report
+make all     # clean, contracts, data, build, metrics-lock, verify, eval, extraction-score, report
 make test
 ```
 
-`make all` takes a couple of minutes on a laptop and needs no network access. CI runs the same and fails if the committed examples or this README differ from what the build writes.
+`make all` takes a couple of minutes on a laptop and needs no network access. CI runs the same and fails if the committed examples, METRICS.md or this README differ from what the build writes.
 
 ### Report site
 
@@ -507,14 +623,15 @@ cd site && npm run preview  # serve the build locally; or `npm run dev` for live
 | `config/generator.yml` | Seed and parameters of the synthetic world |
 | `generator/` | Writes the ledger, provider exports, invoices and the planted truth (`make data`) |
 | `contracts/` | Provider and client contracts as versioned YAML, validated by `feeaudit/contract_schema.json` |
-| `dbt/models/` | Staging, reconciliation, expected charges, findings and marts (`make build`) |
+| `dbt/models/` | Staging, reconciliation, expected charges, findings, marts and the MetricFlow semantic layer (`make build`) |
 | `feeaudit/reference/` | Python reference engine for the differential check (`make verify`) |
 | `feeaudit/evaluation/` | Scores the findings against the planted truth (`make eval`) |
 | `feeaudit/reports/` | Finance outputs, the README blocks and the headline chart (`make report`) |
 | `feeaudit/extraction/`, `contracts/text/`, `contracts/extracted/` | LLM contract extraction, the prose it reads and its recorded output (`make extraction-score`) |
 | `site/` | Evidence report site on the marts and the evaluation (`make site`) |
+| `metrics_mcp/`, `metrics.lock.yml` | MCP server for agents on the certified metrics, and the lock of their versions and fingerprints (`python -m metrics_mcp`) |
 | `docs/data-contract.md` | Binding semantics of every source, term and finding type |
-| `ASSUMPTIONS.md`, `METRICS.md` | Numbered assumptions and metric definitions |
+| `ASSUMPTIONS.md`, `METRICS.md` | Numbered assumptions and metric definitions (the table generated from the semantic layer) |
 | `tests/` | Unit and integration tests (`make test`) |
 
 ### Pinned versions
@@ -523,6 +640,9 @@ cd site && npm run preview  # serve the build locally; or `npm run dev` for live
 |---|---|
 | dbt-core | 1.12.5 |
 | dbt-duckdb | 1.11.0 |
+| dbt-metricflow | 0.15.0 |
+| metricflow | 0.213.0 |
+| mcp | 2.3.0 |
 | duckdb | 1.5.6 |
 | @evidence-dev/evidence | 40.1.8 |
 | @evidence-dev/core-components | 5.4.2 |

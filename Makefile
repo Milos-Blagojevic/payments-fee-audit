@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build verify eval extraction-score report test all clean site
+.PHONY: install contracts data build metrics-lock verify eval extraction-score report test all clean site
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -20,7 +20,12 @@ data:
 build:
 	$(DBT) build $(DBT_ARGS)
 
-# Python reference engine (schema `reference`), then the differential check against int_expected_charges.
+# Fail when a metric definition changed without a version bump, or metrics.lock.yml is stale (A51).
+metrics-lock:
+	$(PYTHON) -m metrics_mcp lock --check
+
+# Python reference engine (schema `reference`), then the differential check against int_expected_charges; records
+# the outcome in verification.check_results for the metrics MCP server.
 verify:
 	$(PYTHON) -m feeaudit.reference
 	$(PYTHON) -m feeaudit.verify
@@ -41,7 +46,7 @@ test:
 extraction-score:
 	$(PYTHON) -m feeaudit.extraction score
 
-all: clean contracts data build verify eval extraction-score report
+all: clean contracts data build metrics-lock verify eval extraction-score report
 
 # Evidence report site in site/build from the warehouse built by `make all` (Node >= 20; not part of `all`).
 # Starts from an empty build and Evidence cache so no stale data extract is published.

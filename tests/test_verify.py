@@ -86,3 +86,19 @@ def test_main_exit_codes_and_report(tmp_path, capsys):
     assert out.count("reference=") == 10  # only the first ten are printed
     assert "p00 transaction_fee: reference=0 dbt=1" in out
     assert "p10" not in out
+
+
+def test_main_records_the_outcome_for_the_metrics_server(tmp_path):
+    db = tmp_path / "fees.duckdb"
+    with duckdb.connect(str(db)) as con:
+        _db(BASE_ROWS, BASE_ROWS, con)
+    for _ in range(2):  # replaced, not appended
+        assert verify.main(["--db", str(db)]) == 0
+    with duckdb.connect(str(db)) as con:
+        rows = con.execute("select check_name, passed, detail from verification.check_results").fetchall()
+        con.execute("update main.int_expected_charges set expected_minor = expected_minor + 1")
+    assert rows == [("differential", True, "reference.expected_charges equals main.int_expected_charges")]
+    assert verify.main(["--db", str(db)]) == 1
+    with duckdb.connect(str(db)) as con:
+        passed, detail = con.execute("select passed, detail from verification.check_results").fetchone()
+    assert passed is False and detail.startswith(f"{len(BASE_ROWS)} differences between")

@@ -1,0 +1,43 @@
+# Version and fingerprint of every metric of dbt/models/semantic/ (A50, A51). Written by
+# `python -m metrics_mcp lock --update` after a version bump; checked by `lock --check` in `make all`.
+metrics:
+  M01:
+    name: processed_volume
+    version: 1
+    fingerprint: 15fe39fced944c53
+  M02:
+    name: provider_fees
+    version: 1
+    fingerprint: f71b042c0a296a32
+  M03:
+    name: effective_rate
+    version: 1
+    fingerprint: 91e7324cf9dd1adb
+  M04:
+    name: markup_rate
+    version: 1
+    fingerprint: f893d03fd7d4b36e
+  M05:
+    name: overcharge
+    version: 1
+    fingerprint: 7c09eb9151269e5a
+  M06:
+    name: undercharge
+    version: 1
+    fingerprint: cc4741ea5207b95b
+  M07:
+    name: recoverable
+    version: 1
+    fingerprint: d801d4e8224350c5
+  M08:
+    name: fx_spread_cost
+    version: 1
+    fingerprint: 769940a62506e007
+  M09:
+    name: revenue_leakage
+    version: 1
+    fingerprint: b8523909bf468ebf
+  M10:
+    name: client_margin
+    version: 1
+    fingerprint: 105a8c3780a93957

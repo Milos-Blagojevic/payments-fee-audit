@@ -286,6 +286,47 @@ models:
       - name: effective_rate_bps
         description: M03 billed ÷ volume in basis points (M04 on `markup` rows).
 
+  - name: fct_processed_volume
+    description: >
+      M01 processed volume: succeeded card payments in the ledger per provider × UTC month × card segment, by event
+      date in UTC. `fct_provider_costs` reads its volumes from here.
+    columns:
+      - name: processed_volume_id
+        description: "`<provider>:<YYYY-MM>:<card_segment>`."
+        data_tests: [unique, not_null]
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [not_null]
+      - name: month
+        description: First day of the UTC month of the payments.
+        data_tests: [not_null]
+      - name: card_segment
+        description: "`eea_consumer` or `other`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [eea_consumer, other]
+      - name: payments
+        description: Number of succeeded card payments.
+      - name: volume_minor
+        description: M01 processed volume, minor units.
+        data_tests: [not_null]
+
+  - name: dim_providers
+    description: One row per provider with a contract, with its name and pricing model.
+    columns:
+      - name: provider
+        description: "{{ doc('provider') }}"
+        data_tests: [unique, not_null]
+      - name: provider_name
+        description: Provider name in its latest contract version.
+      - name: pricing_model
+        description: "`interchange_plus_plus` (a markup over pass-through interchange and scheme fees), `blended` (one rate) or `not_applicable` (no card payments)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [interchange_plus_plus, blended, not_applicable]
+
   - name: fct_fx_conversions
     description: "One row per non-EUR payout Kestrel converted: mid against applied rate, the realised spread, its cost and the part above the cap (M08)."
     columns:

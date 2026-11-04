@@ -1,5 +1,6 @@
-"""Write the finance outputs to reports/, the committed sample to reports/examples/, the headline chart and the
-README generated blocks. Reads the marts and schema `evaluation` of the built warehouse."""
+"""Write the finance outputs to reports/, the committed sample to reports/examples/, the headline chart, the
+README generated blocks and the METRICS.md table. Reads the marts and schema `evaluation` of the built warehouse,
+and the semantic layer through the metrics MCP server's service."""
 
 import argparse
 import shutil
@@ -10,6 +11,8 @@ import duckdb
 
 from feeaudit.reports import client, finance, readme, trace
 from feeaudit.reports.common import as_of_date, write
+from metrics_mcp import docs as metrics_docs
+from metrics_mcp.checks import READ_ONLY
 
 EXAMPLES = ["findings_summary.md", "provider_costs.md", "provider_comparison.md", "follow_one_finding.md",
             "client_report.md"]
@@ -32,18 +35,22 @@ def main(argv=None) -> int:
     parser.add_argument("--db", default="warehouse/fees.duckdb")
     parser.add_argument("--out", default="reports")
     parser.add_argument("--readme", default="README.md")
+    parser.add_argument("--metrics", default="METRICS.md")
     args = parser.parse_args(argv)
     if not Path(args.db).exists():
         print(f"{args.db} not found; run `make all`", file=sys.stderr)
         return 2
     out = Path(args.out)
     as_of = as_of_date()
-    with duckdb.connect(args.db, read_only=True) as con:
+    # The configuration of the metrics server's connection (README block `metrics-mcp`): DuckDB refuses a second
+    # connection to the file with a different one in the same process.
+    with duckdb.connect(args.db, config=READ_ONLY) as con:
         con.execute("SET enable_progress_bar = false")
         files = outputs(con, as_of)
         pack = finance.example_pack(con)
         blocks = readme.blocks(con, as_of)
         chart = readme.chart_svg(con)
+    metrics_table = metrics_docs.metrics_table()
 
     for stale in ("dispute_packs", "examples"):
         shutil.rmtree(out / stale, ignore_errors=True)
@@ -57,10 +64,13 @@ def main(argv=None) -> int:
     write(readme.CHART_PATH, chart)
     readme_path = Path(args.readme)
     readme_path.write_text(readme.render(readme_path.read_text(encoding="utf-8"), blocks), encoding="utf-8")
+    metrics_path = Path(args.metrics)
+    metrics_path.write_text(readme.render(metrics_path.read_text(encoding="utf-8"), {"metrics": metrics_table}),
+                            encoding="utf-8")
 
     packs = sum(1 for name in files if name.endswith("letter.md"))
     print(f"wrote {len(files)} files to {out}/ ({packs} dispute packs), examples to {out}/examples/, "
-          f"{readme.CHART_PATH} and {readme_path}")
+          f"{readme.CHART_PATH}, {readme_path} and {metrics_path}")
     return 0
 
 

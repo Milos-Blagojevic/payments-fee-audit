@@ -1,13 +1,15 @@
 """Differential check: Python reference expected charges vs the dbt engine's.
 
 `python -m feeaudit.verify [--db warehouse/fees.duckdb] [--dbt-table main.int_expected_charges]`
-exits non-zero on any missing row, duplicate key or amount difference.
+exits non-zero on any missing row, duplicate key or amount difference, and records the outcome in
+`verification.check_results` (replaced each run) for the metrics MCP server's `differential` check.
 """
 
 import argparse
 import re
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from typing import NamedTuple
 
 import duckdb
@@ -68,18 +70,35 @@ def compare(
     return differences
 
 
+def record(con: duckdb.DuckDBPyConnection, passed: bool, detail: str) -> None:
+    """Replace the outcome in `verification.check_results`; the metrics MCP server reads it (A52)."""
+    con.execute("create schema if not exists verification")
+    con.execute(
+        "create or replace table verification.check_results"
+        " (check_name varchar, passed boolean, detail varchar, checked_at timestamp)"
+    )
+    con.execute(
+        "insert into verification.check_results values ('differential', ?, ?, ?)",
+        [passed, detail, datetime.now(timezone.utc).replace(tzinfo=None)],
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Compare reference.expected_charges with the dbt expected charges.")
     parser.add_argument("--db", default="warehouse/fees.duckdb")
     parser.add_argument("--dbt-table", default=DBT_TABLE)
     args = parser.parse_args(argv)
-    with duckdb.connect(args.db, read_only=True) as con:
+    with duckdb.connect(args.db) as con:
         differences = compare(con, REFERENCE_TABLE, args.dbt_table)
+        counts = Counter(d.kind for d in differences)
+        summary = ", ".join(f"{k}: {n}" for k, n in sorted(counts.items()))
+        detail = (f"{REFERENCE_TABLE} equals {args.dbt_table}" if not differences
+                  else f"{len(differences)} differences between {REFERENCE_TABLE} and {args.dbt_table} ({summary})")
+        record(con, not differences, detail)
     if not differences:
-        print(f"OK: {REFERENCE_TABLE} equals {args.dbt_table}")
+        print(f"OK: {detail}")
         return 0
-    counts = Counter(d.kind for d in differences)
-    print(f"FAIL: {len(differences)} differences ({', '.join(f'{k}: {n}' for k, n in sorted(counts.items()))})")
+    print(f"FAIL: {len(differences)} differences ({summary})")
     print("First ten:")
     for d in differences[:10]:
         print(

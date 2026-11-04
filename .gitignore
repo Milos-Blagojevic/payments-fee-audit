@@ -28,3 +28,6 @@ site/static/data/
 site/sources/**/*.parquet
 site/*.options.yaml
 site/.env
+
+# Metrics MCP server audit log (one line per tool call)
+warehouse/metrics_mcp_audit.jsonl

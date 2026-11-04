@@ -1,4 +1,4 @@
--- Client billing findings (spec section 9): every client invoice line (client × month × component) whose billed
+-- Client billing findings: every client invoice line (client × month × component) whose billed
 -- amount differs from the pricing agreement by at least one minor unit. Same columns as `fct_findings` with
 -- party `client`; `component` is the invoice line component. Negative differences are revenue leakage: Fernway
 -- billed too little and corrects its own invoice; nothing is disputed with a provider (A31).

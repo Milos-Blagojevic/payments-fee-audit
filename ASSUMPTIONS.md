@@ -63,7 +63,7 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 - **Default:** provider costs are allocated by the event they belong to; costs with no event (monthly minimums, volume adjustments) by volume share.
 - **Why:** event-level costs are traceable; volume share is the plainest split of the rest.
 - **Alternatives:** by transaction count, or not allocated.
-- **Set in:** the client margin model (spec section 9).
+- **Set in:** the client margin model (`fct_client_margin`).
 
 ## A10 Anomaly model
 
@@ -103,7 +103,7 @@ Numbered and stable: code, docs and findings cite these ids. Each entry gives th
 ## A15 Synthetic volumes and mixes
 
 - **Default:** 400k payment attempts (94% succeeded) over 40 clients, lognormal amounts per client (median about EUR 54, with price points such as x.00, x.50 and x.99), monthly seasonality rising from January to June, three mid-period provider switches, 3% refunds 1–30 days later, 0.3% chargebacks 20–90 days later, 60k payouts with about 1% of SWIFT payouts above EUR 45k.
-- **Why:** these values put every calibration target of spec section 7.8 in range for the default seed, and the threshold crossings that the planted cases need (Northgate above and below EUR 2.5M, Brightpay EEA consumer volume above EUR 1.5M) happen with a margin that the one-day ledger lag cannot flip; the generator asserts that margin.
+- **Why:** these values put every calibration target (`generator/calibration.py`) in range for the default seed, and the threshold crossings that the planted cases need (Northgate above and below EUR 2.5M, Brightpay EEA consumer volume above EUR 1.5M) happen with a margin that the one-day ledger lag cannot flip; the generator asserts that margin.
 - **Alternatives:** any other mix; the calibration table shows whether it still exercises every case.
 - **Set in:** `config/generator.yml`.
 

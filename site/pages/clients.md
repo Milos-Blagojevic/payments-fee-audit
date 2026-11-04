@@ -3,7 +3,7 @@ title: Clients
 sidebar_position: 7
 ---
 
-Synthetic data; clients, prices and rates are illustrative. Fernway bills its merchant clients under pricing agreements. Each client invoice line (client × month × component) is checked against the agreement; a negative difference is revenue leakage (M09), billed too little, which Fernway corrects on its own invoices rather than disputes. The margin (M10) is what Fernway billed minus the provider costs of the client's events.
+Synthetic data; clients, prices and rates are illustrative. Fernway bills its merchant clients under pricing agreements. Each client invoice line (client × month × component) is checked against the agreement. A line billed below the agreement is revenue leakage, which Fernway corrects on its own invoices rather than disputes; the finding tables show the difference as billed minus agreed (negative), and M09 totals it as a positive amount. The margin (M10) is what Fernway billed minus the provider costs of the client's events.
 
 ```sql leakage_totals
 select

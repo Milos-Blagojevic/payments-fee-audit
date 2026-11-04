@@ -513,7 +513,7 @@ models:
 
   - name: int_daily_component_rates
     description: >
-      Daily effective rate per provider × fee component × card segment (spec section 10, A10, A42): the billed
+      Daily effective rate per provider × fee component × card segment (A10, A42): the billed
       amount of the day's compared card charges (payments, refunds and chargebacks in the ledger, by UTC event day)
       in basis points of the day's processed volume (M01 by UTC day), against the median and the median absolute
       deviation (MAD) of the same series over the previous `anomaly_window_days` days. A series starts on its first

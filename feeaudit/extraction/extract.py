@@ -6,7 +6,6 @@ file until a person has reviewed it. Every call is recorded with its usage and c
 updated before anything else happens to the response.
 """
 
-import copy
 import datetime as dt
 import hashlib
 import json

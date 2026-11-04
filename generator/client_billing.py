@@ -136,8 +136,6 @@ def compute(cfg, world, pay, payouts, phantom, fx, agreements):
     qty["platform_fee"][:] = 1
     correct["volume_discount"] = -round_div(fee_num * pct, 1_000_000, mode)
     correct["promo_discount"] = -round_div(promo_num * promo_pct, 1_000_000, mode)
-    qty["volume_discount"] = np.where(correct["volume_discount"] != 0, n_pay, 0)
-    qty["promo_discount"] = np.where(correct["promo_discount"] != 0, n_pay, 0)
 
     billed = {k: val.copy() for k, val in correct.items()}
     leakage = []
@@ -160,6 +158,9 @@ def compute(cfg, world, pay, payouts, phantom, fx, agreements):
     # L04: discount of the next tier up.
     l04 = (next_pct > pct) & (fee_num > 0) & (rng.random(shape) < lk["L04"]["share"])
     billed["volume_discount"] = np.where(l04, -round_div(fee_num * next_pct, 1_000_000, mode), billed["volume_discount"])
+    # Quantities as the invoice shows them: a discount line counts the month's payments whenever it is billed.
+    qty["volume_discount"] = np.where(billed["volume_discount"] != 0, n_pay, 0)
+    qty["promo_discount"] = np.where(billed["promo_discount"] != 0, n_pay, 0)
 
     labels = month_str(months)
     for k in COMPONENTS:

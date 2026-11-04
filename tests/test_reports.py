@@ -1,4 +1,4 @@
-"""Finance outputs and README blocks, on the warehouse built by `make all`."""
+"""Finance outputs and the generated blocks of README.md and docs/walkthrough.md, on the warehouse built by `make all`."""
 
 import csv
 import io
@@ -117,23 +117,30 @@ def test_follow_one_finding_agrees_with_fct_findings(con):
         assert value in text
 
 
-def test_readme_render_is_idempotent_and_strict():
-    text = "a\n<!-- generated:x -->\nold\n<!-- /generated -->\nb\n<!-- generated:y -->\n<!-- /generated -->\n"
-    once = readme.render(text, {"x": "new\n", "y": "| t |"})
-    assert once == "a\n<!-- generated:x -->\nnew\n<!-- /generated -->\nb\n<!-- generated:y -->\n| t |\n<!-- /generated -->\n"
-    assert readme.render(once, {"x": "new\n", "y": "| t |"}) == once
-    with pytest.raises(KeyError):
-        readme.render(text, {"x": "new"})
-    with pytest.raises(KeyError):
-        readme.render(text, {"x": "1", "y": "2", "z": "3"})
+def test_render_is_idempotent_and_strict():
+    a = "a\n<!-- generated:x -->\nold\n<!-- /generated -->\n"
+    b = "b\n<!-- generated:y -->\n<!-- /generated -->\n"
+    generated = {"x": "new\n", "y": "| t |"}
+    once = readme.render({"a.md": a, "b.md": b}, generated)
+    assert once == {"a.md": "a\n<!-- generated:x -->\nnew\n<!-- /generated -->\n",
+                    "b.md": "b\n<!-- generated:y -->\n| t |\n<!-- /generated -->\n"}
+    assert readme.render(once, generated) == once
+    with pytest.raises(KeyError, match="no generator"):
+        readme.render({"a.md": a, "b.md": b}, {"x": "new"})
+    with pytest.raises(KeyError, match="lack the blocks"):
+        readme.render({"a.md": a, "b.md": b}, {"x": "1", "y": "2", "z": "3"})
+    with pytest.raises(KeyError, match="both"):
+        readme.render({"a.md": a, "b.md": a}, generated)
 
 
-def test_readme_blocks_render_idempotently(con):
+def test_committed_docs_render_idempotently(con):
     blocks = readme.blocks(con, AS_OF)
-    current = Path("README.md").read_text(encoding="utf-8")
+    current = {str(p): p.read_text(encoding="utf-8") for p in (readme.README, readme.WALKTHROUGH)}
     once = readme.render(current, blocks)
     assert readme.render(once, blocks) == once
-    assert set(re.findall(r"<!-- generated:([\w-]+) -->", once)) == set(blocks)
+    found = [name for text in once.values() for name in re.findall(r"<!-- generated:([\w-]+) -->", text)]
+    assert sorted(found) == sorted(blocks)
+    assert re.findall(r"<!-- generated:([\w-]+) -->", once[str(readme.README)]) == ["headline", "examples"]
 
 
 def test_client_report_totals_match_margin_and_findings(con):

@@ -1,5 +1,6 @@
 """Write the finance outputs to reports/, the committed sample to reports/examples/, the headline chart and the
-README generated blocks. Reads the marts and schema `evaluation` of the built warehouse."""
+generated blocks of README.md and docs/walkthrough.md. Reads the marts and schema `evaluation` of the built
+warehouse."""
 
 import argparse
 import shutil
@@ -11,8 +12,10 @@ import duckdb
 from feeaudit.reports import client, finance, readme, trace
 from feeaudit.reports.common import as_of_date, write
 
-EXAMPLES = ["findings_summary.md", "provider_costs.md", "provider_comparison.md", "follow_one_finding.md",
-            "client_report.md"]
+# The committed sample: the Markdown reports and the CSVs they cite, plus one dispute pack chosen by the build.
+EXAMPLES = ["findings_summary.md", "findings_summary.csv", "provider_costs.md", "provider_costs.csv",
+            "provider_comparison.md", "provider_comparison.csv", "follow_one_finding.md",
+            "client_report.md", "client_margin.csv", "client_findings.csv"]
 
 
 def outputs(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
@@ -31,7 +34,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default="warehouse/fees.duckdb")
     parser.add_argument("--out", default="reports")
-    parser.add_argument("--readme", default="README.md")
+    parser.add_argument("--readme", default=str(readme.README))
+    parser.add_argument("--walkthrough", default=str(readme.WALKTHROUGH))
     args = parser.parse_args(argv)
     if not Path(args.db).exists():
         print(f"{args.db} not found; run `make all`", file=sys.stderr)
@@ -55,12 +59,13 @@ def main(argv=None) -> int:
         write(out / "examples" / name, files[name])
 
     write(readme.CHART_PATH, chart)
-    readme_path = Path(args.readme)
-    readme_path.write_text(readme.render(readme_path.read_text(encoding="utf-8"), blocks), encoding="utf-8")
+    docs = {name: Path(name).read_text(encoding="utf-8") for name in (args.readme, args.walkthrough)}
+    for name, text in readme.render(docs, blocks).items():
+        Path(name).write_text(text, encoding="utf-8")
 
     packs = sum(1 for name in files if name.endswith("letter.md"))
     print(f"wrote {len(files)} files to {out}/ ({packs} dispute packs), examples to {out}/examples/, "
-          f"{readme.CHART_PATH} and {readme_path}")
+          f"{readme.CHART_PATH} and {', '.join(docs)}")
     return 0
 
 

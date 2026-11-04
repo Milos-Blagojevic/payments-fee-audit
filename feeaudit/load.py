@@ -78,7 +78,7 @@ def load(data_dir="data", db_path="warehouse/fees.duckdb"):
             if not files:
                 continue
             table = f"{entity_dir.parent.name}__{entity_dir.name}"
-            frame = read_source(files, root)  # noqa: F841 (read by DuckDB's replacement scan)
+            frame = read_source(files, root)  # also read by DuckDB's replacement scan of `frame` below
             casts = ", ".join(
                 f'NULLIF(CAST("{c}" AS VARCHAR), \'\') AS "{c}"' for c in frame if c not in ("source_file", "source_row")
             )

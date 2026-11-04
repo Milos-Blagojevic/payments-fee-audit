@@ -1,4 +1,4 @@
-"""Finance outputs (spec section 13, items 1–4): each function returns {relative path: file text}."""
+"""Finance outputs: each function returns {relative path: file text}."""
 
 import datetime as dt
 from collections import defaultdict
@@ -307,7 +307,7 @@ def findings_summary(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, st
     return {"findings_summary.md": md, "findings_summary.csv": csv_out}
 
 
-# Anomalies (spec section 10): reported with the findings, never disputed ---------------------------------------
+# Anomalies: reported with the findings, never disputed ----------------------------------------------------------
 
 
 def anomaly_counts(con: duckdb.DuckDBPyConnection) -> list[dict]:
@@ -529,8 +529,8 @@ def best_switch_sentence(con: duckdb.DuckDBPyConnection) -> str:
         f"The switch that would have saved the most: moving {names.get(best['actual_provider'])}'s "
         f"`{best['card_segment']}` volume (EUR {eur(best['volume_minor'])}, {best['payments']:,} payments) to "
         f"{names.get(best['alternative_provider'])}'s contract, EUR {eur(best['saving_minor'])} from {span} "
-        f"({rate_pct(best['actual_expected_minor'], best['volume_minor'])} instead of "
-        f"{rate_pct(best['alternative_expected_minor'], best['volume_minor'])} of volume)."
+        f"({rate_pct(best['alternative_expected_minor'], best['volume_minor'])} instead of "
+        f"{rate_pct(best['actual_expected_minor'], best['volume_minor'])} of volume)."
     )
 
 

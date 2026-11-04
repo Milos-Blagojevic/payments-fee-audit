@@ -1,1 +1,1 @@
-"""Finance outputs (spec section 13) and the README generated blocks: `python -m feeaudit.reports`."""
+"""Finance outputs and the generated blocks of README.md and docs/walkthrough.md: `python -m feeaudit.reports`."""

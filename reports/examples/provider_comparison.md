@@ -2,7 +2,7 @@
 
 What each card segment's succeeded payments cost under the contract of the provider that processed them, and what they would have cost under the other card provider's contract. Payment-level fees only (interchange, scheme fee, markup and fixed fee, or the blended rate), each provider's own month volume for its tiers; refund and chargeback fees, minimums and volume discounts are left out (assumption A23). Amounts in EUR; a positive saving means the other contract would have been cheaper. Source: `fct_provider_comparison`.
 
-The switch that would have saved the most: moving Brightpay's `eea_consumer` volume (EUR 10,307,622.05, 125,016 payments) to Northgate Acquiring's contract, EUR 102,581.19 from 2026-01 to 2026-06 (1.703% instead of 0.708% of volume).
+The switch that would have saved the most: moving Brightpay's `eea_consumer` volume (EUR 10,307,622.05, 125,016 payments) to Northgate Acquiring's contract, EUR 102,581.19 from 2026-01 to 2026-06 (0.708% instead of 1.703% of volume).
 
 ## Whole period
 

@@ -216,7 +216,7 @@ def _build(con, client: bool) -> None:
 
 
 def _anomaly_report(con) -> None:
-    """Planted anomalies against fct_anomalies, reported only (spec 12: no target).
+    """Planted anomalies against fct_anomalies, reported only (no target).
 
     One row per planted anomaly (detected or not) and one per detected anomaly that matches no plant. A detection
     matches a plant when provider and component are equal, the card segments are equal or either is `all`, and the

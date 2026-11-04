@@ -15,7 +15,8 @@ SCHEMA_PATH = Path(__file__).with_name("contract_schema.json")
 # Subdirectory of the contracts directory that holds unreviewed LLM extractions; never loaded.
 EXTRACTED_DIR = "extracted"
 
-# Components of each kind; a term's optional `component` must equal the single one.
+# Components each kind produces (see term_components); `payout_fee_by_rail` derives one per rail instead. The schema
+# constrains a term's optional `component` per kind.
 KIND_COMPONENTS = {
     "pass_through": ["interchange", "scheme_fee"],
     "markup_bps_tiered": ["markup"],

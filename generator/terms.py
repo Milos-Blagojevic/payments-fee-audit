@@ -1,7 +1,6 @@
 """Reads contract YAML files and the interchange reference for the generator's own fee calculation."""
 
 import csv
-import datetime as dt
 from pathlib import Path
 
 import numpy as np
@@ -53,7 +52,3 @@ def load_interchange(path):
             k = SCHEMES.index(row["card_scheme"]), CARD_TYPES.index(row["card_type"]), REGIONS.index(row["card_region"])
             ic[k], sf[k], fixed[k] = int(row["interchange_bps"]), int(row["scheme_fee_bps"]), int(row["scheme_fee_fixed_minor"])
     return ic, sf, fixed
-
-
-def as_date(value):
-    return value if isinstance(value, dt.date) else dt.date.fromisoformat(value)

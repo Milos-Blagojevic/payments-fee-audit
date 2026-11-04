@@ -1,4 +1,4 @@
-"""Calibration targets of the synthetic world (spec 7.8), computed from the generated tables."""
+"""Calibration targets of the synthetic world, computed from the generated tables."""
 
 from generator.common import BRIGHTPAY, NORTHGATE, SUCCEEDED
 

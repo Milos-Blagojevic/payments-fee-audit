@@ -1,4 +1,4 @@
-"""Follow one finding (spec section 13.6): one wrong-card-segment finding traced from the raw provider row to the
+"""Follow one finding: one wrong-card-segment finding traced from the raw provider row to the
 finding, every value read from the warehouse when the report is built."""
 
 import json

@@ -1,4 +1,4 @@
-"""Client report (spec section 13, item 5): revenue leakage by client, type and month (M09) and margin per client
+"""Client report: revenue leakage by client, type and month (M09) and margin per client
 (M10), from `fct_client_billing_findings` and `fct_client_margin`."""
 
 from collections import defaultdict

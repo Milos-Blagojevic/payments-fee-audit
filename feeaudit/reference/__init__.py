@@ -1,4 +1,4 @@
-"""Python reference fee engine (spec section 11): expected provider charges from contracts and the raw ledger."""
+"""Python reference fee engine: expected provider charges from contracts and the raw ledger."""
 
 from pathlib import Path
 

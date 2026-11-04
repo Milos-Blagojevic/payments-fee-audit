@@ -1,7 +1,7 @@
-"""README generated blocks (spec section 15) and the headline chart.
+"""Generated blocks of README.md and docs/walkthrough.md, and the headline chart.
 
-Every block sits between `<!-- generated:<name> -->` and `<!-- /generated -->` in README.md; the prose around the
-blocks is hand-written and never touched. Rendering twice gives the same file.
+Every block sits between `<!-- generated:<name> -->` and `<!-- /generated -->` in one of the two files; the prose
+around the blocks is hand-written and never touched. Rendering twice gives the same files.
 """
 
 import ast
@@ -21,6 +21,9 @@ from feeaudit.verify import DBT_TABLE, REFERENCE_TABLE, compare
 
 BLOCK = re.compile(r"(<!-- generated:([\w-]+) -->\n)(.*?)(<!-- /generated -->)", re.DOTALL)
 
+README = Path("README.md")
+WALKTHROUGH = Path("docs/walkthrough.md")
+DOCS_ROOT = "../"  # relative path from docs/ back to the repository root, for links in the walkthrough's blocks
 CHART_PATH = Path("docs/img/money-found-by-type.svg")
 MANIFEST = Path("dbt/target/manifest.json")
 SPEND_LEDGER = OUT_DIR / RECORDED / LEDGER
@@ -55,7 +58,7 @@ def chart_svg(con: duckdb.DuckDBPyConnection) -> str:
     data = finance.findings_by_type(con)
     bars = [(r["truth_id"], label(r["finding_type"]), r["over_minor"] + r["under_minor"]) for r in data]
     bars.sort(key=lambda b: (-abs(b[2]), b[0]))
-    top = max(abs(b[2]) for b in bars)
+    top = max((abs(b[2]) for b in bars), default=0) or 1
     left, bar_area, row_h, head = 330, 330, 26, 44
     width = left + bar_area + 110
     height = head + row_h * len(bars) + 16
@@ -160,7 +163,8 @@ def _python_functions() -> list[tuple[str, int, int]]:
             for name in CLAUSE_PY_FUNCTIONS]
 
 
-def block_contract_to_rule(con) -> str:
+def block_contract_to_rule(con, root: str) -> str:
+    """One clause as YAML, SQL and Python; `root` prefixes the file links (the block lives under docs/)."""
     term = rows(con, "select * from main.dim_contract_terms where source_file = ? and clause = ?",
                 [CLAUSE_YAML.as_posix(), CLAUSE])[0]
     yaml_text, y0, y1 = _yaml_clause()
@@ -170,13 +174,13 @@ def block_contract_to_rule(con) -> str:
     return "\n\n".join([
         f"**The clause** ({term['contract_term_id']}, *{term['title']}*), as `dim_contract_terms` states it: "
         f"{term['clause_text']}",
-        f"In the contract file, [`{CLAUSE_YAML}`]({CLAUSE_YAML}) lines {y0}–{y1}:",
+        f"In the contract file, [`{CLAUSE_YAML}`]({root}{CLAUSE_YAML}) lines {y0}–{y1}:",
         f"```yaml\n{yaml_text}\n```",
         f"**The SQL** that turns it into an expected charge per payment, "
-        f"[`{CLAUSE_SQL}`]({CLAUSE_SQL}) lines {s0}–{s1}:",
+        f"[`{CLAUSE_SQL}`]({root}{CLAUSE_SQL}) lines {s0}–{s1}:",
         f"```sql\n{sql_text}\n```",
         f"**The Python reference**, written separately from the SQL, "
-        f"[`{CLAUSE_PY}`]({CLAUSE_PY}) ({', '.join(f'lines {a}–{b}' for _, a, b in functions)}):",
+        f"[`{CLAUSE_PY}`]({root}{CLAUSE_PY}) ({', '.join(f'lines {a}–{b}' for _, a, b in functions)}):",
         f"```python\n{py_text}\n```",
     ])
 
@@ -226,7 +230,8 @@ def block_reconciliation(con) -> str:
 
 
 def block_noise(con) -> str:
-    fp = dict(con.execute("select noise_id, count(*) from evaluation.noise_false_positives group by 1").fetchall())
+    fp = dict(con.execute("select noise_id, count(*) from evaluation.noise_false_positives "
+                          "where category = 'noise' group by 1").fetchall())
     return md_table(
         ["Noise", "Handling", "False findings on noise rows"],
         [[n, text, fp.get(n, 0)] for n, text in NOISE_HANDLING.items()],
@@ -302,28 +307,36 @@ def block_anomalies(con) -> str:
     ])
 
 
+# The README's reading list, in the order a first reader should take it; the dispute pack is appended from the build.
 EXAMPLES = [
-    ("findings_summary.md", "Findings summary", "overcharge and undercharge by provider, type and month; "
-                                                "recoverable money against money past its deadline; anomalies, "
+    ("findings_summary.md", "Findings summary", "overcharge and undercharge by provider, type and month; what can "
+                                                "still be disputed against what is past its deadline; anomalies, "
                                                 "reported but not disputed"),
+    ("follow_one_finding.md", "Follow one finding", "one finding traced from the provider's raw file row through "
+                                                    "staging, the reconciliation match and the expected charge with "
+                                                    "its formula, to the finding"),
+    ("client_report.md", "Client report", "the same checks on Fernway's own invoices: revenue leakage by client, "
+                                          "type and month, and margin per client"),
     ("provider_costs.md", "Monthly provider cost report", "volume, fees by component, effective and markup rates "
                                                           "by provider and card segment, change against the "
                                                           "previous month"),
     ("provider_comparison.md", "Provider comparison", "cost per card segment under each card contract"),
-    ("follow_one_finding.md", "Follow one finding", "one finding traced from the raw row to the finding"),
-    ("client_report.md", "Client report", "revenue leakage by client, type and month, and margin per client"),
 ]
 
 
-def block_examples(con, pack: dict) -> str:
+def block_examples(pack: dict) -> str:
     folder = f"reports/examples/dispute_packs/{pack['provider']}/{pack['dispute_queue_id']}"
     items = [f"- [{title}](reports/examples/{name}): {text}." for name, title, text in EXAMPLES]
-    items.append(
+    items.insert(2, (
         f"- Dispute pack for invoice {pack['invoice_id']}: [letter]({folder}/letter.md) and "
-        f"[findings]({folder}/findings.csv) ({pack['overcharge_findings']:,} overcharges, EUR "
-        f"{eur(pack['overcharge_minor'])}, deadline {pack['earliest_deadline']})."
-    )
-    return "\n".join(items) + "\n\n" + finance.best_switch_sentence(con) + "\n\n" + finance.comparison_table(con)
+        f"[line-level findings]({folder}/findings.csv), clause-cited ({pack['overcharge_findings']:,} overcharges, "
+        f"EUR {eur(pack['overcharge_minor'])}, deadline {pack['earliest_deadline']})."
+    ))
+    return "\n".join(items)
+
+
+def block_provider_comparison(con) -> str:
+    return finance.best_switch_sentence(con) + "\n\n" + finance.comparison_table(con)
 
 
 def block_revenue_side(con) -> str:
@@ -346,7 +359,8 @@ def block_revenue_side(con) -> str:
 
 def block_extraction(con) -> str:
     """Accuracy of the recorded LLM extractions (evaluation.extraction_scores) and what they cost (spend ledger)."""
-    calls = load_ledger(SPEND_LEDGER)["calls"]
+    ledger = load_ledger(SPEND_LEDGER)
+    calls = ledger["calls"]
     if not calls:
         return "No extraction has been recorded yet: `contracts/extracted/` is empty, so there is nothing to score."
     versions = rows(
@@ -366,7 +380,7 @@ def block_extraction(con) -> str:
     correct, total = sum(v["correct"] for v in versions), sum(v["total"] for v in versions)
     models = sorted({c["model"] for c in calls})
     parts = [
-        f"{len(calls)} recorded call(s) to {', '.join(f'`{m}`' for m in models)} cost USD {usd(spent(load_ledger(SPEND_LEDGER)))} "
+        f"{len(calls)} recorded call(s) to {', '.join(f'`{m}`' for m in models)} cost USD {usd(spent(ledger))} "
         f"in total. Field accuracy against the hand-written contract files: {accuracy(correct, total)} "
         f"({correct:,} of {total:,} fields).",
         md_table(
@@ -390,34 +404,42 @@ def block_extraction(con) -> str:
 def blocks(con: duckdb.DuckDBPyConnection, as_of: str) -> dict[str, str]:
     return {
         "headline": block_headline(con, as_of),
+        "examples": block_examples(finance.example_pack(con)),
         "world": block_world(con),
-        "contract-to-rule": block_contract_to_rule(con),
+        "contract-to-rule": block_contract_to_rule(con, DOCS_ROOT),
         "lineage": block_lineage(),
         "reconciliation": block_reconciliation(con),
         "noise": block_noise(con),
         "findings-summary": finance.findings_type_table(con),
         "evaluation": block_evaluation(con),
         "anomalies": block_anomalies(con),
-        "examples": block_examples(con, finance.example_pack(con)),
+        "provider-comparison": block_provider_comparison(con),
         "revenue-side": block_revenue_side(con),
         "extraction": block_extraction(con),
     }
 
 
-def render(text: str, generated: dict[str, str]) -> str:
-    """Replace the body of every generated block; fails on a missing or unknown block."""
-    seen = set()
+def render(texts: dict[str, str], generated: dict[str, str]) -> dict[str, str]:
+    """Replace the body of every generated block in each file (name -> text).
 
-    def replace(match: re.Match) -> str:
-        name = match.group(2)
-        if name not in generated:
-            raise KeyError(f"README block {name!r} has no generator")
-        seen.add(name)
-        return f"{match.group(1)}{generated[name].strip()}\n{match.group(4)}"
+    Fails when a file holds a block with no generator, when a block appears in more than one file, or when a
+    generated block appears in none."""
+    seen: dict[str, str] = {}
 
-    result = BLOCK.sub(replace, text)
-    missing = sorted(set(generated) - seen)
+    def replace_in(file: str):
+        def replace(match: re.Match) -> str:
+            name = match.group(2)
+            if name not in generated:
+                raise KeyError(f"{file}: block {name!r} has no generator")
+            if name in seen:
+                raise KeyError(f"block {name!r} is in both {seen[name]} and {file}")
+            seen[name] = file
+            return f"{match.group(1)}{generated[name].strip()}\n{match.group(4)}"
+        return replace
+
+    result = {file: BLOCK.sub(replace_in(file), text) for file, text in texts.items()}
+    missing = sorted(set(generated) - set(seen))
     if missing:
-        raise KeyError(f"README lacks the blocks {missing}")
+        raise KeyError(f"{', '.join(texts)} lack the blocks {missing}")
     return result
 

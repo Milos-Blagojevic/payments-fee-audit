@@ -3,11 +3,11 @@ version: 2
 models:
   - name: fct_findings
     description: >
-      The single findings table. Rule findings (spec 8.5, `method = 'rule'`): every compared charge whose billed
+      The single findings table. Rule findings (`method = 'rule'`): every compared charge whose billed
       amount differs from the contract by at least one minor unit, classified by the rule semantics of data contract
       section 5. The retroactive-tier pattern is one finding per provider × month; every other rule finding is one
       line or event × component. Month-level checks of a month the ledger does not cover yet, and lines after the
-      ledger watermark, are pending and never findings. Anomaly findings (spec 10, `method = 'anomaly'`): the
+      ledger watermark, are pending and never findings. Anomaly findings (`method = 'anomaly'`): the
       fct_anomalies rows that neither a rule finding nor the contract explains (A44).
     columns:
       - name: finding_id
@@ -18,7 +18,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                values: [provider, client]
+                values: [provider]
       - name: counterparty
         description: The provider (or client) the finding is against.
         data_tests: [not_null]
@@ -103,7 +103,7 @@ models:
       - name: days_left
         description: Days from the `as_of_date` var to the dispute deadline (negative = past, A22).
       - name: method
-        description: "`rule` (section 5 rules) or `anomaly` (fct_anomalies, spec 10)."
+        description: "`rule` (section 5 rules) or `anomaly` (fct_anomalies)."
         data_tests:
           - accepted_values:
               arguments:
@@ -111,7 +111,7 @@ models:
 
   - name: fct_anomalies
     description: >
-      Billing patterns no rule describes (spec section 10). `rate_shift`: a day whose effective rate of a provider ×
+      Billing patterns no rule describes. `rate_shift`: a day whose effective rate of a provider ×
       fee component × card segment is beyond the robust z-score threshold against its trailing median
       (int_daily_component_rates, A10, A42). `new_component`: the first day a provider bills a fee component that no
       version of its contract names, after `anomaly_window_days` days of its history (A43). Each row states the
@@ -381,7 +381,7 @@ models:
       before the deadline (M07) and undercharges reported but not disputed (M06). `rounding` findings are excluded.
     columns:
       - name: dispute_queue_id
-        description: The invoice id.
+        description: The invoice id, or `<provider>:<month>` for a statement month with findings but no invoice yet.
         data_tests: [unique, not_null]
       - name: provider
         description: "{{ doc('provider') }}"
@@ -468,7 +468,7 @@ models:
 
   - name: fct_client_billing_findings
     description: >
-      Client billing findings (spec section 9): every client invoice line (client × month × component) whose billed
+      Client billing findings: every client invoice line (client × month × component) whose billed
       amount differs from the pricing agreement by at least one minor unit. Same columns as `fct_findings` with
       party `client`; `component` is the invoice line component. Negative differences are revenue leakage that
       Fernway corrects on its own invoices; there is no provider dispute (A31). Every month is checked, the last one

@@ -1,5 +1,5 @@
 {#-
-    Daily effective rate per provider × fee component × card segment (spec section 10, A10): what the day's card
+    Daily effective rate per provider × fee component × card segment (A10): what the day's card
     events were billed for that component, in basis points of the day's processed volume (M01 by UTC day), against
     the median and the median absolute deviation (MAD) of the same series over the previous
     `anomaly_window_days` days. A day is scored once that window holds `anomaly_window_days` observed days.

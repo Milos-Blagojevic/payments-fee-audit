@@ -1,5 +1,5 @@
 {#-
-    Anomalies (spec section 10): billing patterns that no rule describes. Two kinds:
+    Anomalies: billing patterns that no rule describes. Two kinds:
     - `rate_shift`: a day whose effective rate of a provider × fee component × card segment is beyond the robust
       z-score threshold against its trailing median (int_daily_component_rates, A10, A42);
     - `new_component`: the first day a provider bills a fee component that no version of its contract names and

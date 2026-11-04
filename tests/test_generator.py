@@ -1,4 +1,4 @@
-"""Generator checks (spec 7.8): determinism, calibration, zero-rate billing, invoice totals, planting rules, anomalies."""
+"""Generator checks: determinism, calibration, zero-rate billing, invoice totals, planting rules, anomalies."""
 
 import collections
 import copy

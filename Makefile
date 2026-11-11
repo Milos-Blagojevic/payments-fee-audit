@@ -4,7 +4,7 @@ PYTHON := $(BIN)python
 DBT := $(BIN)dbt --no-use-colors
 DBT_ARGS := --project-dir dbt --profiles-dir dbt
 
-.PHONY: install contracts data build verify eval extraction-score report test all clean site
+.PHONY: install contracts data build verify eval extraction-score extraction-export report test all clean site
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
@@ -40,6 +40,11 @@ test:
 # the API. Writes evaluation.extraction_scores. The paid extraction itself is `python -m feeaudit.extraction extract`.
 extraction-score:
 	$(PYTHON) -m feeaudit.extraction score
+
+# Data of the site's extraction page (site/static/extract/extraction.json): the prompt, the schemas, the model settings
+# and the sample contracts, from the extraction's own code. Offline; CI checks the committed file equals a fresh export.
+extraction-export:
+	$(PYTHON) -m feeaudit.extraction export
 
 all: clean contracts data build verify eval extraction-score report
 

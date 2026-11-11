@@ -7,6 +7,8 @@ Fernway is a fictional payments company. Every number on this site comes from sy
 
 This page summarises the provider fee rule findings: charges whose billed amount differs from the contract. Billing patterns no rule describes are on the [Anomalies](/anomalies) page, and Fernway's billing of its own clients on the [Clients](/clients) page. Metric ids (M01–M10) refer to `METRICS.md`.
 
+The contracts behind these checks also exist as legal prose. <a href="/extract/" rel="external">Try the contract extraction</a>: Claude turns a sample contract (or one you paste) back into contract YAML, in your browser and on your own Puter account.
+
 ```sql totals
 select
     sum(overcharge_minor) / 100.0 as overcharge_eur,

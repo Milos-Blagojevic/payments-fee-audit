@@ -190,20 +190,35 @@ def source_files(name, text_dir=TEXT_DIR):
     return files
 
 
+# The last paragraph of the user message: for a master agreement alone, or for one with amendment letters.
+TASKS = {
+    "master_agreement": "Extract the contract version that this agreement sets out.",
+    "amendment_letter": "Extract the complete contract version that the amendment letter creates.",
+}
+
+
+def prompt(documents, schema_path=SCHEMA_PATH):
+    """System prompt and messages for [(role, text)]: the master agreement alone, or with its amendment letters.
+
+    The one place the prompt is assembled: `build_request` sends it, and `export` writes its parts (and these
+    messages for each sample) for the site's extraction page, which builds the same messages in the browser.
+    """
+    body = "\n\n".join(f"<document role=\"{role}\">\n{text}</document>" for role, text in documents)
+    task = TASKS["master_agreement"] if len(documents) == 1 else TASKS["amendment_letter"]
+    return {
+        "system": f"{SYSTEM_PROMPT}\nParameter schema per kind:\n"
+                  f"{json.dumps(kind_parameters(schema_path), indent=1, sort_keys=True)}\n",
+        "messages": [{"role": "user", "content": f"{body}\n\n{task}"}],
+    }
+
+
 def build_request(name, model, config, text_dir=TEXT_DIR):
     """Messages API arguments for one contract version (deterministic for given texts and config)."""
-    files = source_files(name, text_dir)
-    documents = "\n\n".join(f"<document role=\"{role}\">\n{path.read_text()}</document>" for role, path in files)
-    if len(files) == 1:
-        task = "Extract the contract version that this agreement sets out."
-    else:
-        task = "Extract the complete contract version that the amendment letter creates."
+    documents = [(role, path.read_text()) for role, path in source_files(name, text_dir)]
     return {
         "model": model,
         "max_tokens": config.max_tokens,
-        "system": f"{SYSTEM_PROMPT}\nParameter schema per kind:\n"
-                  f"{json.dumps(kind_parameters(), indent=1, sort_keys=True)}\n",
-        "messages": [{"role": "user", "content": f"{documents}\n\n{task}"}],
+        **prompt(documents),
         "output_config": {"effort": config.effort, "format": {"type": "json_schema", "schema": extraction_schema()}},
     }
 
@@ -222,13 +237,16 @@ def _usage(response):
     }
 
 
+# Header lines after the provenance line of every extracted file.
+YAML_NOTICE = [
+    "# NOT APPROVED: every term has approved: false, so feeaudit.contracts refuses this file. Review each term",
+    "# against the text, set approved: true, then promote the file (docs/llm-extraction.md).",
+]
+
+
 def _contract_yaml(doc, model, files, timestamp):
     sources = ", ".join(_rel(path) for _, path in files)
-    header = [
-        f"# Extracted by {model} from {sources} on {timestamp}.",
-        "# NOT APPROVED: every term has approved: false, so feeaudit.contracts refuses this file. Review each term",
-        "# against the text, set approved: true, then promote the file (docs/llm-extraction.md).",
-    ]
+    header = [f"# Extracted by {model} from {sources} on {timestamp}.", *YAML_NOTICE]
     out = dict(doc)
     if isinstance(out.get("effective_from"), str):
         try:

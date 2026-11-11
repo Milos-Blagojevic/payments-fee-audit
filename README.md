@@ -33,7 +33,7 @@ Everything runs on synthetic, seeded data: Fernway, its 40 clients and its 3 pro
 4. **Findings become finance outputs.** A findings summary by provider, type and month; a dispute queue per invoice with its deadline; a dispute pack per invoice (letter plus line-level CSV); a monthly cost report; a provider comparison per card segment.
 5. **The same engine runs on the revenue side.** Each client's pricing agreement is applied to the client's events and compared with the invoice Fernway sent: a fee not billed, a promotion past its end date, a discount above the agreed tier. Margin per client sets the billing against the provider costs of the client's own events.
 6. **What no rule describes is still reported.** A second pass flags a fee type the provider never billed before and a daily effective rate that moves off its baseline, states what explains it, and claims no money.
-7. **Contracts can arrive as prose.** Every provider contract version is also rendered as legal text, and an LLM turns it back into contract YAML under a JSON schema. Every extracted term is `approved: false`, the loader refuses unapproved terms, and a spend ledger refuses any call that could exceed the budget.
+7. **Contracts can arrive as prose.** Every provider contract version is also rendered as legal text, and an LLM turns it back into contract YAML under a JSON schema. Every extracted term is `approved: false`, the loader refuses unapproved terms, and a spend ledger refuses any call that could exceed the budget. A page of the report site runs the same extraction in a visitor's browser, paid by their own Puter account, and hands back a draft that is just as unapproved.
 
 ## What the numbers prove, and what they don't
 
@@ -85,9 +85,10 @@ cd site && npm run preview  # serve the build locally; or `npm run dev` for live
 | `feeaudit/reference/` | Python reference engine for the differential check (`make verify`) |
 | `feeaudit/evaluation/` | Scores the findings against the planted truth (`make eval`) |
 | `feeaudit/reports/` | Finance outputs, the generated blocks of this file and the walkthrough, and the headline chart (`make report`) |
-| `feeaudit/extraction/`, `contracts/text/`, `contracts/extracted/` | LLM contract extraction, the prose it reads and its recorded output (`make extraction-score`) |
+| `feeaudit/extraction/`, `contracts/text/`, `contracts/extracted/` | LLM contract extraction, the prose it reads and its recorded output (`make extraction-score`); `make extraction-export` writes the data of the site's extraction page |
 | `site/` | Evidence report site on the marts and the evaluation (`make site`) |
+| `site/static/extract/` | The site's extraction page: static HTML and JavaScript with Puter.js, the exported `extraction.json` and vendored Ajv and js-yaml ([docs/llm-extraction.md](docs/llm-extraction.md#in-the-browser)) |
 | `docs/walkthrough.md` | The long version: world, lineage, reconciliation, findings, evaluation, anomalies, revenue side, extraction |
 | `docs/data-contract.md` | Binding semantics of every source, term and finding type |
 | `ASSUMPTIONS.md`, `METRICS.md` | Numbered assumptions and metric definitions |
-| `tests/` | Unit and integration tests (`make test`) |
+| `tests/` | Unit and integration tests (`make test`); `tests/js/` checks the extraction page against the recorded extractions (`node --test tests/js/*.test.mjs`) |

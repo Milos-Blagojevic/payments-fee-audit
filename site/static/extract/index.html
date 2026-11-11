@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Try the contract extraction · payments-fee-audit</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/extract/page.css">
+  <script src="https://js.puter.com/v2/"></script>
+  <script type="module" src="/extract/page.js"></script>
+</head>
+<body>
+  <header>
+    <a href="/">payments-fee-audit report site</a>
+  </header>
+
+  <main>
+    <h1>Try the contract extraction</h1>
+    <p>
+      The project reads payment-provider contracts written as prose and turns them back into contract YAML with
+      <code class="model">…</code>. This page sends the same prompt and JSON schema as
+      <code>python -m feeaudit.extraction extract</code>, from your browser and on your own Puter account. You get a draft
+      contract file in which every term is <code>approved: false</code>. Nobody has reviewed it, and the fee engine
+      refuses it until a person does.
+    </p>
+
+    <section class="notice" aria-labelledby="notice-title">
+      <h2 id="notice-title">Before you extract</h2>
+      <ul>
+        <li><strong>Where the text goes.</strong> The contract text you extract, a sample or what you paste, is sent to
+          Puter (puter.com), and from Puter to Anthropic, which runs the model. Nothing goes to this site's owner.</li>
+        <li><strong>Who pays.</strong> The call runs on your Puter account and is charged to it (Puter's user-pays
+          model). This site holds no API key and pays nothing.</li>
+        <li><strong>What it costs.</strong> At Anthropic's list prices, each of the five sample extractions cost
+          USD <span id="cost-range">…</span> in the recorded runs. Puter charges its own rates, which may
+          differ. Until the call ends, Puter holds the most it could cost (up to
+          <span class="max-tokens">…</span> output tokens) against your balance.</li>
+        <li><strong>What to send.</strong> The samples are synthetic: the merchant Fernway and its providers are fictional.
+          Do not paste a confidential contract.</li>
+      </ul>
+      <label class="ack"><input type="checkbox" id="ack"> I have read this. Run the extraction on my Puter account.</label>
+    </section>
+
+    <section aria-labelledby="input-title">
+      <h2 id="input-title">Contract</h2>
+      <div class="choice">
+        <label><input type="radio" name="source" value="sample" checked> A sample contract version</label>
+        <div class="when-sample">
+          <select id="sample" aria-label="Sample contract version"></select>
+          <p id="sample-recorded" class="muted"></p>
+          <details>
+            <summary>Text that is sent</summary>
+            <div id="sample-documents"></div>
+          </details>
+        </div>
+      </div>
+      <div class="choice">
+        <label><input type="radio" name="source" value="paste"> Paste a contract as plain text</label>
+        <div class="when-paste">
+          <label for="master">Master agreement</label>
+          <textarea id="master" rows="8" spellcheck="false" disabled></textarea>
+          <label for="letter">Amendment letter (optional; the result is the amended version)</label>
+          <textarea id="letter" rows="5" spellcheck="false" disabled></textarea>
+        </div>
+      </div>
+      <button id="extract" type="button" disabled>Extract</button>
+    </section>
+
+    <section aria-live="polite">
+      <ol id="log"></ol>
+    </section>
+
+    <section id="result" hidden aria-labelledby="result-title">
+      <h2 id="result-title">Draft contract</h2>
+      <p class="unapproved"><strong>NOT APPROVED.</strong> Every term has <code>approved: false</code>, so
+        <code>feeaudit.contracts</code> refuses this file until a person has checked each term against the contract
+        text (<a href="https://github.com/Milos-Blagojevic/payments-fee-audit/blob/main/docs/llm-extraction.md#the-approval-gate">the approval gate</a>).</p>
+      <div id="problems"></div>
+      <div class="columns">
+        <div>
+          <h3>Extracted in your browser <button id="download" type="button">Download YAML</button></h3>
+          <pre id="yaml"></pre>
+        </div>
+        <div id="hand-written-column">
+          <h3>Hand-written: <code id="hand-written-path"></code></h3>
+          <pre id="hand-written"></pre>
+        </div>
+      </div>
+    </section>
+
+    <details class="differences">
+      <summary>How this differs from the Python run</summary>
+      <ul>
+        <li>Same system prompt, documents, task, JSON schema, model and <code>max_tokens</code>
+          (<span class="max-tokens">…</span>). The data comes from <code>python -m feeaudit.extraction export</code>.</li>
+        <li>The request goes through Puter, pinned to Anthropic (<code>provider: "claude"</code>,
+          <code>fallback: false</code>). The page checks that Puter lists the model and stops if it does not.</li>
+        <li>Effort is not sent: Puter documents no effort option for Anthropic models, so the model's default effort
+          applies. The Python run sends <code id="effort">…</code>. Thinking is left at the model's default in both.</li>
+        <li>No token count, no budget and no spend ledger: Puter bills your account, and the cost shown is Puter's.</li>
+        <li>The result is checked against the full <code>contract_schema.json</code>. The loader's further checks (time
+          zone, duplicate clauses, order of volume bands) run when the file is loaded with <code>feeaudit.contracts</code>.</li>
+        <li>Nothing is stored: not in this site, not in your Puter storage. The download is the only copy.</li>
+      </ul>
+      <p><a href="https://github.com/Milos-Blagojevic/payments-fee-audit/blob/main/docs/llm-extraction.md#in-the-browser">docs/llm-extraction.md, In the browser</a></p>
+    </details>
+  </main>
+
+  <footer>
+    <a href="https://developer.puter.com">Powered by Puter</a>
+    · <a href="https://github.com/Milos-Blagojevic/payments-fee-audit">Source</a>
+  </footer>
+</body>
+</html>

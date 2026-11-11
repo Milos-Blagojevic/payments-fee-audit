@@ -1,5 +1,6 @@
 """`python -m feeaudit.extraction extract [--only NAME]` calls the Anthropic API (paid, needs ANTHROPIC_API_KEY and
-requirements-llm.txt); `python -m feeaudit.extraction score` scores the committed extractions (offline, CI-safe)."""
+requirements-llm.txt); `python -m feeaudit.extraction score` scores the committed extractions and `export` writes the
+data of the site's extraction page (both offline, CI-safe)."""
 
 import argparse
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 
 from feeaudit.extraction.budget import CONFIG_PATH, BudgetError, load_config, usd
 from feeaudit.extraction.extract import OUT_DIR, TEXT_DIR, ExtractionError, extract
+from feeaudit.extraction.export import EXPORT_PATH, render_export
 from feeaudit.extraction.score import report, score, write_scores
 
 
@@ -55,6 +57,13 @@ def run_score(args):
     return 0
 
 
+def run_export(args):
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(render_export())
+    print(f"wrote {args.out}")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m feeaudit.extraction", description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -69,6 +78,9 @@ def main(argv=None):
     sc.add_argument("--extracted-dir", type=Path, default=OUT_DIR)
     sc.add_argument("--db", type=Path, default=Path("warehouse/fees.duckdb"))
     sc.set_defaults(run=run_score)
+    ex = commands.add_parser("export", help="write the data of the site's extraction page (offline)")
+    ex.add_argument("--out", type=Path, default=EXPORT_PATH)
+    ex.set_defaults(run=run_export)
     args = parser.parse_args(argv)
     return args.run(args)
 

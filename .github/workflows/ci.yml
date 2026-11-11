@@ -27,11 +27,16 @@ jobs:
       - run: npm install -g npm@11.6.2
       - run: make install
       - run: make all
-      - name: Committed examples, README and walkthrough match the build
+      # The data of the site's extraction page; not part of `make all`, but generated and checked the same way.
+      - run: make extraction-export
+      - name: Committed examples, README, walkthrough and extraction page data match the build
         run: |
-          git status --porcelain reports/examples README.md docs/walkthrough.md docs/img
-          test -z "$(git status --porcelain reports/examples README.md docs/walkthrough.md docs/img)"
-          git diff --exit-code reports/examples README.md docs/walkthrough.md docs/img
+          paths=(reports/examples README.md docs/walkthrough.md docs/img site/static/extract/extraction.json)
+          git status --porcelain "${paths[@]}"
+          test -z "$(git status --porcelain "${paths[@]}")"
+          git diff --exit-code "${paths[@]}"
+      # The extraction page's JavaScript against the recorded extractions (offline).
+      - run: node --test tests/js/*.test.mjs
       - run: make site
       - run: make test
       # Publish site/build on Puter (README, "Report site"): pushes to main of this repository only, never pull

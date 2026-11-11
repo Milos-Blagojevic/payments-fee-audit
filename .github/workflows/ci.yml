@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Runs on main wait for each other, so an older build never overwrites a newer one on Puter; other runs never wait.
+    concurrency:
+      group: ${{ github.ref == 'refs/heads/main' && 'ci-main' || format('ci-{0}', github.run_id) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,3 +34,31 @@ jobs:
           git diff --exit-code reports/examples README.md docs/walkthrough.md docs/img
       - run: make site
       - run: make test
+      # Publish site/build on Puter (README, "Report site"): pushes to main of this repository only, never pull
+      # requests or forks, and only once the owner has set the PUTER_TOKEN secret and the PUTER_SUBDOMAIN variable.
+      - name: Check the Puter deploy settings
+        id: puter
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !github.event.repository.fork
+        env:
+          PUTER_TOKEN: ${{ secrets.PUTER_TOKEN }}
+          PUTER_SUBDOMAIN: ${{ vars.PUTER_SUBDOMAIN }}
+        run: |
+          if [ -z "$PUTER_TOKEN" ] || [ -z "$PUTER_SUBDOMAIN" ]; then
+            echo "::notice title=Puter deploy skipped::the PUTER_TOKEN secret or the PUTER_SUBDOMAIN variable is not set"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          elif ! printf '%s' "$PUTER_SUBDOMAIN" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+            echo "::error title=Puter deploy::PUTER_SUBDOMAIN must be the bare label, e.g. fernway-fee-audit for fernway-fee-audit.puter.site"
+            exit 1
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Pinned to the commit of tag v1.0.6; the action receives the Puter token. It uploads every file of the build
+      # (overwriting) and points the subdomain at puter_path; it never deletes files there.
+      - name: Deploy site/build to Puter
+        if: steps.puter.outputs.deploy == 'true'
+        uses: HeyPuter/puter-subdomain-deploy-action@88492ccf86048912f8be726a57756e5c3e4ef250 # v1.0.6
+        with:
+          subdomain: ${{ vars.PUTER_SUBDOMAIN }}
+          puter_path: ~/Sites/${{ vars.PUTER_SUBDOMAIN }}/site
+          source_path: site/build
+          puter_token: ${{ secrets.PUTER_TOKEN }}

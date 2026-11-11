@@ -74,6 +74,13 @@ make site                 # npm ci, extract the marts to site/sources, build the
 cd site && npm run preview  # serve the build locally; or `npm run dev` for live editing
 ```
 
+CI publishes the site at `https://<subdomain>.puter.site` after every push to `main` that passes all the checks, so the public site is the build of the latest `main`; pull requests and forks never deploy. Everything on it is synthetic (Fernway, its clients and its providers are fictional), so there is nothing confidential to publish. To turn it on, the repository owner:
+
+1. picks the subdomain and sets it as the repository variable `PUTER_SUBDOMAIN`, as the bare label (`fernway-fee-audit` for `fernway-fee-audit.puter.site`);
+2. creates a Puter auth token ([how](https://developer.puter.com/tutorials/puter-auth-token/)) and stores it as the repository secret `PUTER_TOKEN`.
+
+Until both are set, the deploy step is skipped with a notice and CI stays green. The deploy ([HeyPuter/puter-subdomain-deploy-action](https://github.com/HeyPuter/puter-subdomain-deploy-action) v1.0.6) uploads `site/build` to `~/Sites/<subdomain>/site` in the owner's Puter account, overwriting files of the same name, and points the subdomain at that folder. It never deletes: a file that a later build no longer has stays online until the owner deletes the folder on puter.com and re-runs the latest `main` workflow. The build is about 96 MiB, most of it DuckDB's WebAssembly, against 100 MiB of storage on a free Puter account.
+
 ### Repository map
 
 | Path | Contents |
